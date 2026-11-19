@@ -1,0 +1,403 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAppOwner() {
+      return isVerifiedUser() && request.auth.token.email == 'mortyp1125@gmail.com';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 80 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isNonEmptyString(val, maxLen) {
+      return val is string && val.size() > 0 && val.size() <= maxLen;
+    }
+
+    function isOptionalString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    // User Profile — prevent self-escalation of role or securityClearance
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && incoming().keys().hasAll(['id', 'email', 'role', 'securityClearance', 'createdAt', 'updatedAt'])
+        && incoming().keys().hasOnly(['id', 'email', 'displayName', 'photoURL', 'role', 'securityClearance', 'subscriptionStatus', 'createdAt', 'updatedAt'])
+        && incoming().id == userId
+        && incoming().email == request.auth.token.email
+        && incoming().role == 'user'
+        && incoming().securityClearance in ['Recruit', 'Operator']
+        && isOptionalString(incoming(), 'displayName', 120)
+        && isOptionalString(incoming(), 'photoURL', 500)
+        && isOptionalString(incoming(), 'subscriptionStatus', 64)
+        && incoming().createdAt is string
+        && incoming().createdAt.size() <= 64
+        && incoming().updatedAt is string
+        && incoming().updatedAt.size() <= 64;
+
+      allow update: if isOwner(userId)
+        && incoming().keys().hasAll(['id', 'email', 'role', 'securityClearance', 'createdAt', 'updatedAt'])
+        && incoming().keys().hasOnly(['id', 'email', 'displayName', 'photoURL', 'role', 'securityClearance', 'subscriptionStatus', 'createdAt', 'updatedAt'])
+        && incoming().id == existing().id
+        && incoming().email == existing().email
+        && incoming().role == existing().role
+        && incoming().securityClearance == existing().securityClearance
+        && incoming().createdAt == existing().createdAt
+        && isOptionalString(incoming(), 'displayName', 120)
+        && isOptionalString(incoming(), 'photoURL', 500)
+        && isOptionalString(incoming(), 'subscriptionStatus', 64)
+        && incoming().updatedAt is string
+        && incoming().updatedAt.size() <= 64;
+
+      allow delete: if false;
+
+      // User Preferences Subcollection
+      match /preferences/{prefId} {
+        allow get, list: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && isValidId(prefId)
+          && incoming().keys().hasAll(['userId', 'currency', 'updatedAt'])
+          && incoming().keys().hasOnly(['userId', 'currency', 'isPppMode', 'targetSector', 'targetSalary', 'targetRole', 'notificationAlerts', 'updatedAt'])
+          && incoming().userId == userId
+          && isNonEmptyString(incoming().currency, 16)
+          && incoming().updatedAt is string
+          && incoming().updatedAt.size() <= 64;
+        allow delete: if isOwner(userId);
+      }
+
+      // User Saved Career Paths Subcollection
+      match /careerPaths/{careerPathId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(careerPathId)
+          && incoming().keys().hasAll(['id', 'userId', 'roleKey', 'roleTitle', 'savedAt'])
+          && incoming().keys().hasOnly(['id', 'userId', 'roleKey', 'roleTitle', 'targetSalary', 'notes', 'savedAt'])
+          && incoming().id == careerPathId
+          && incoming().userId == userId
+          && isNonEmptyString(incoming().roleKey, 64)
+          && isNonEmptyString(incoming().roleTitle, 160)
+          && isOptionalString(incoming(), 'notes', 1000)
+          && incoming().savedAt is string
+          && incoming().savedAt.size() <= 64;
+        allow update: if isOwner(userId)
+          && incoming().id == existing().id
+          && incoming().userId == existing().userId
+          && incoming().savedAt == existing().savedAt
+          && incoming().keys().hasOnly(['id', 'userId', 'roleKey', 'roleTitle', 'targetSalary', 'notes', 'savedAt'])
+          && isNonEmptyString(incoming().roleKey, 64)
+          && isNonEmptyString(incoming().roleTitle, 160)
+          && isOptionalString(incoming(), 'notes', 1000);
+        allow delete: if isOwner(userId);
+      }
+
+      // User Saved Jobs Subcollection
+      match /savedJobs/{savedJobId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(savedJobId)
+          && incoming().keys().hasAll(['id', 'userId', 'jobId', 'title', 'savedAt'])
+          && incoming().keys().hasOnly(['id', 'userId', 'jobId', 'title', 'company', 'location', 'salary', 'savedAt'])
+          && incoming().id == savedJobId
+          && incoming().userId == userId
+          && isNonEmptyString(incoming().jobId, 128)
+          && isNonEmptyString(incoming().title, 200)
+          && isOptionalString(incoming(), 'company', 160)
+          && isOptionalString(incoming(), 'location', 160)
+          && isOptionalString(incoming(), 'salary', 120)
+          && incoming().savedAt is string
+          && incoming().savedAt.size() <= 64;
+        allow update: if isOwner(userId)
+          && incoming().id == existing().id
+          && incoming().userId == existing().userId
+          && incoming().savedAt == existing().savedAt
+          && incoming().keys().hasOnly(['id', 'userId', 'jobId', 'title', 'company', 'location', 'salary', 'savedAt']);
+        allow delete: if isOwner(userId);
+      }
+
+      // Live ATS Job Alert Subscriptions
+      match /jobAlerts/{alertId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(alertId)
+          && incoming().keys().hasAll(['id', 'userId', 'title', 'minSalary', 'maxSalary', 'active', 'createdAt', 'updatedAt'])
+          && incoming().keys().hasOnly(['id', 'userId', 'title', 'keywords', 'location', 'minSalary', 'maxSalary', 'urgency', 'active', 'matchCount', 'createdAt', 'updatedAt'])
+          && incoming().id == alertId
+          && incoming().userId == userId
+          && isNonEmptyString(incoming().title, 160)
+          && isOptionalString(incoming(), 'keywords', 160)
+          && isOptionalString(incoming(), 'location', 100)
+          && isOptionalString(incoming(), 'urgency', 40)
+          && incoming().minSalary is number && incoming().minSalary >= 0 && incoming().minSalary <= 2000000
+          && incoming().maxSalary is number && incoming().maxSalary >= incoming().minSalary && incoming().maxSalary <= 5000000
+          && incoming().active is bool
+          && (!('matchCount' in incoming()) || (incoming().matchCount is int && incoming().matchCount >= 0 && incoming().matchCount <= 10000))
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isOwner(userId)
+          && incoming().id == existing().id
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().keys().hasOnly(['id', 'userId', 'title', 'keywords', 'location', 'minSalary', 'maxSalary', 'urgency', 'active', 'matchCount', 'createdAt', 'updatedAt'])
+          && incoming().diff(existing()).affectedKeys().hasOnly(['active', 'matchCount', 'updatedAt', 'title', 'keywords', 'location', 'minSalary', 'maxSalary', 'urgency'])
+          && incoming().active is bool
+          && (!('matchCount' in incoming()) || (incoming().matchCount is int && incoming().matchCount >= 0 && incoming().matchCount <= 10000));
+        allow delete: if isOwner(userId);
+      }
+
+      // Live ATS Job Alert Notifications
+      match /alertNotifications/{notifId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(notifId)
+          && incoming().keys().hasAll(['id', 'userId', 'subscriptionId', 'jobId', 'jobTitle', 'company', 'isRead', 'createdAt'])
+          && incoming().keys().hasOnly(['id', 'userId', 'subscriptionId', 'jobId', 'jobTitle', 'company', 'location', 'salaryLabel', 'urgency', 'applyUrl', 'matchedCriteriaLabel', 'isRead', 'createdAt'])
+          && incoming().id == notifId
+          && incoming().userId == userId
+          && isNonEmptyString(incoming().subscriptionId, 80)
+          && isNonEmptyString(incoming().jobId, 160)
+          && isNonEmptyString(incoming().jobTitle, 200)
+          && isNonEmptyString(incoming().company, 160)
+          && isOptionalString(incoming(), 'location', 160)
+          && isOptionalString(incoming(), 'salaryLabel', 120)
+          && isOptionalString(incoming(), 'urgency', 60)
+          && isOptionalString(incoming(), 'applyUrl', 500)
+          && isOptionalString(incoming(), 'matchedCriteriaLabel', 180)
+          && incoming().isRead is bool
+          && incoming().createdAt == request.time;
+        allow update: if isOwner(userId)
+          && incoming().id == existing().id
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().diff(existing()).affectedKeys().hasOnly(['isRead'])
+          && incoming().isRead is bool;
+        allow delete: if isOwner(userId);
+      }
+
+      // User StealthNet Persona
+      match /stealthPersona/{personaId} {
+        allow get, list: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && personaId == 'profile'
+          && incoming().keys().hasAll(['userId', 'handle', 'tier', 'badge', 'disclosureLevel', 'openToBackchannel', 'updatedAt'])
+          && incoming().keys().hasOnly(['userId', 'handle', 'tier', 'badge', 'disclosureLevel', 'bio', 'primaryStack', 'minCompensationFloor', 'openToBackchannel', 'updatedAt'])
+          && incoming().userId == userId
+          && isNonEmptyString(incoming().handle, 64)
+          && isNonEmptyString(incoming().tier, 80)
+          && isNonEmptyString(incoming().badge, 120)
+          && incoming().disclosureLevel in ['Pure Stealth (Masked)', 'Verified Tier (Standard)', 'Selective Decrypt (Recruiters)']
+          && isOptionalString(incoming(), 'bio', 600)
+          && (!('primaryStack' in incoming()) || (incoming().primaryStack is list && incoming().primaryStack.size() <= 15 && (incoming().primaryStack.size() == 0 || incoming().primaryStack[0] is string)))
+          && isOptionalString(incoming(), 'minCompensationFloor', 80)
+          && incoming().openToBackchannel is bool
+          && incoming().updatedAt == request.time;
+        allow delete: if isOwner(userId);
+      }
+
+      // User Private Live-ATS Outreach Notes
+      match /atsNotes/{noteId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId)
+          && isValidId(noteId)
+          && incoming().keys().hasAll(['id', 'userId', 'atsPostId', 'company', 'roleTitle', 'note', 'createdAt'])
+          && incoming().keys().hasOnly(['id', 'userId', 'atsPostId', 'company', 'roleTitle', 'externalUrl', 'note', 'createdAt'])
+          && incoming().id == noteId
+          && incoming().userId == userId
+          && isNonEmptyString(incoming().atsPostId, 160)
+          && isNonEmptyString(incoming().company, 160)
+          && isNonEmptyString(incoming().roleTitle, 200)
+          && isOptionalString(incoming(), 'externalUrl', 500)
+          && isNonEmptyString(incoming().note, 1500)
+          && incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // StealthNet Community Posts — verified signed-in users
+    match /stealthPosts/{postId} {
+      allow get, list: if isSignedIn();
+      allow create: if isVerifiedUser()
+        && isValidId(postId)
+        && incoming().keys().hasAll(['id', 'authorUid', 'category', 'sector', 'authorHandle', 'authorBadge', 'authorTier', 'zkVerified', 'title', 'content', 'tags', 'canDirectPing', 'isUrgent', 'createdAt', 'updatedAt'])
+        && incoming().keys().hasOnly(['id', 'authorUid', 'category', 'sector', 'authorHandle', 'authorBadge', 'authorTier', 'zkVerified', 'title', 'content', 'compensationTag', 'locationTag', 'tags', 'canDirectPing', 'isUrgent', 'createdAt', 'updatedAt'])
+        && incoming().id == postId
+        && incoming().authorUid == request.auth.uid
+        && incoming().category in ['unlisted_drop', 'comp_intel', 'ground_truth', 'candidate_pitch', 'tech_debate']
+        && isNonEmptyString(incoming().sector, 100)
+        && isNonEmptyString(incoming().authorHandle, 64)
+        && isNonEmptyString(incoming().authorBadge, 120)
+        && isNonEmptyString(incoming().authorTier, 80)
+        && incoming().zkVerified is bool
+        && isNonEmptyString(incoming().title, 180)
+        && isNonEmptyString(incoming().content, 4000)
+        && isOptionalString(incoming(), 'compensationTag', 80)
+        && isOptionalString(incoming(), 'locationTag', 100)
+        && incoming().tags is list && incoming().tags.size() <= 10 && (incoming().tags.size() == 0 || incoming().tags[0] is string)
+        && incoming().canDirectPing is bool
+        && incoming().isUrgent is bool
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && existing().authorUid == request.auth.uid
+        && incoming().id == existing().id
+        && incoming().authorUid == existing().authorUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'compensationTag', 'locationTag', 'tags', 'canDirectPing', 'isUrgent', 'updatedAt']);
+      allow delete: if isVerifiedUser() && existing().authorUid == request.auth.uid;
+
+      // Comments Subcollection — requires parent StealthPost to exist
+      match /comments/{commentId} {
+        allow get, list: if isSignedIn();
+        allow create: if isVerifiedUser()
+          && isValidId(commentId)
+          && exists(/databases/$(database)/documents/stealthPosts/$(postId))
+          && incoming().keys().hasAll(['id', 'postId', 'authorUid', 'authorHandle', 'authorBadge', 'authorTier', 'content', 'createdAt'])
+          && incoming().keys().hasOnly(['id', 'postId', 'authorUid', 'authorHandle', 'authorBadge', 'authorTier', 'content', 'createdAt'])
+          && incoming().id == commentId
+          && incoming().postId == postId
+          && incoming().authorUid == request.auth.uid
+          && isNonEmptyString(incoming().authorHandle, 64)
+          && isNonEmptyString(incoming().authorBadge, 120)
+          && isNonEmptyString(incoming().authorTier, 80)
+          && isNonEmptyString(incoming().content, 2000)
+          && incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isVerifiedUser() && existing().authorUid == request.auth.uid;
+      }
+
+      // Reactions Subcollection — deterministic doc ID "${uid}_${type}" prevents multi-vote spoofing
+      match /reactions/{reactionId} {
+        allow get, list: if isSignedIn();
+        allow create: if isVerifiedUser()
+          && exists(/databases/$(database)/documents/stealthPosts/$(postId))
+          && incoming().keys().hasAll(['id', 'postId', 'userId', 'type', 'createdAt'])
+          && incoming().keys().hasOnly(['id', 'postId', 'userId', 'type', 'createdAt'])
+          && incoming().id == reactionId
+          && incoming().postId == postId
+          && incoming().userId == request.auth.uid
+          && incoming().type in ['upvote', 'vouch']
+          && reactionId == (request.auth.uid + '_' + incoming().type)
+          && incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isVerifiedUser() && existing().userId == request.auth.uid;
+      }
+    }
+
+    // Encrypted Backchannel Handshake Pings — participant isolation strictly enforced
+    match /stealthPings/{pingId} {
+      allow get: if isVerifiedUser() && (existing().senderUid == request.auth.uid || existing().recipientUid == request.auth.uid);
+      allow list: if isVerifiedUser() && (resource.data.senderUid == request.auth.uid || resource.data.recipientUid == request.auth.uid);
+      allow create: if isVerifiedUser()
+        && isValidId(pingId)
+        && incoming().keys().hasAll(['id', 'postId', 'postTitle', 'senderUid', 'recipientUid', 'senderHandle', 'senderRole', 'senderTier', 'targetHandle', 'message', 'status', 'createdAt', 'updatedAt'])
+        && incoming().keys().hasOnly(['id', 'postId', 'postTitle', 'senderUid', 'recipientUid', 'senderHandle', 'senderRole', 'senderTier', 'targetHandle', 'offerCompensation', 'message', 'status', 'createdAt', 'updatedAt'])
+        && incoming().id == pingId
+        && incoming().senderUid == request.auth.uid
+        && isNonEmptyString(incoming().recipientUid, 80)
+        && incoming().recipientUid != request.auth.uid
+        && isNonEmptyString(incoming().postId, 80)
+        && isNonEmptyString(incoming().postTitle, 200)
+        && isNonEmptyString(incoming().senderHandle, 64)
+        && isNonEmptyString(incoming().senderRole, 120)
+        && isNonEmptyString(incoming().senderTier, 80)
+        && isNonEmptyString(incoming().targetHandle, 64)
+        && isOptionalString(incoming(), 'offerCompensation', 80)
+        && isNonEmptyString(incoming().message, 1500)
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && existing().recipientUid == request.auth.uid
+        && existing().status == 'pending'
+        && incoming().id == existing().id
+        && incoming().postId == existing().postId
+        && incoming().senderUid == existing().senderUid
+        && incoming().recipientUid == existing().recipientUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && incoming().status in ['accepted', 'declined'];
+      allow delete: if false;
+    }
+
+    // Paystack Subscription Ledger — zero client writes permitted; owner read-only
+    match /subscriptions/{subscriptionId} {
+      allow get: if isSignedIn() && (
+        existing().userId == request.auth.uid ||
+        (isVerifiedUser() && existing().email == request.auth.token.email)
+      );
+      allow list: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        (isVerifiedUser() && resource.data.email == request.auth.token.email)
+      );
+      allow create, update, delete: if false;
+    }
+
+    // Community Verified Offers — verified signed-in submitters only; cannot self-mark HR_VERIFIED
+    match /verifiedOffers/{offerId} {
+      allow get, list: if isSignedIn();
+      allow create: if isVerifiedUser()
+        && isValidId(offerId)
+        && incoming().submittedByUid == request.auth.uid
+        && isNonEmptyString(incoming().company, 120)
+        && isNonEmptyString(incoming().role, 160)
+        && isOptionalString(incoming(), 'sector', 120)
+        && incoming().totalAnnualComp is number
+        && incoming().totalAnnualComp >= 0 && incoming().totalAnnualComp <= 10000000
+        && incoming().verificationBadge == 'COMMUNITY_PENDING_AUDIT'
+        && incoming().createdAt is string
+        && incoming().createdAt.size() <= 64;
+      allow update, delete: if false;
+    }
+
+    // Referral Ledger — zero client writes permitted; referrer read-only
+    match /referrals/{referralCode} {
+      allow get: if isSignedIn() && isValidId(referralCode) && existing().referrerUid == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.referrerUid == request.auth.uid;
+      allow create, update, delete: if false;
+    }
+
+    // Server-managed Inbound Contact Inquiries — owner read-only, zero client writes
+    match /contactInquiries/{inquiryId} {
+      allow get, list: if isAppOwner();
+      allow create, update, delete: if false;
+    }
+
+    // Server-managed Agency Pilot Requests — owner read-only, zero client writes
+    match /agencyPilotRequests/{requestId} {
+      allow get, list: if isAppOwner();
+      allow create, update, delete: if false;
+    }
+  }
+}

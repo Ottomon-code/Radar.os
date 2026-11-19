@@ -1,0 +1,62 @@
+{
+  "packageId": "com.talentradar.app",
+  "host": "talentradar.io",
+  "name": "Global Job & Career Radar",
+  "launcherName": "TalentRadar",
+  "display": "standalone",
+  "themeColor": "#0F1720",
+  "themeColorDark": "#0A0F14",
+  "navigationColor": "#0A0F14",
+  "navigationColorDark": "#0A0F14",
+  "navigationDividerColor": "#1E2B36",
+  "navigationDividerColorDark": "#1E2B36",
+  "backgroundColor": "#0A0F14",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://talentradar.io/playstore-icon-512x512.png",
+  "maskableIconUrl": "https://talentradar.io/pwa-maskable-512x512.png",
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "3D Radar",
+      "short_name": "Radar",
+      "url": "/radar",
+      "icon": "https://talentradar.io/pwa-192x192.png"
+    },
+    {
+      "name": "Market Analytics",
+      "short_name": "Analytics",
+      "url": "/salary-analytics",
+      "icon": "https://talentradar.io/pwa-192x192.png"
+    },
+    {
+      "name": "StealthNet",
+      "short_name": "StealthNet",
+      "url": "/stealthnet",
+      "icon": "https://talentradar.io/pwa-192x192.png"
+    }
+  ],
+  "splashScreenFadeOutDuration": 300,
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "signing": {
+    "scheme": "v2+v3",
+    "keyStore": "./release.keystore",
+    "keyAlias": "talentradar"
+  },
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "features": {
+    "locationDelegation": {
+      "enabled": true
+    },
+    "playBilling": {
+      "enabled": false
+    }
+  },
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://talentradar.io/manifest.webmanifest",
+  "fallbackType": "customtabs"
+}

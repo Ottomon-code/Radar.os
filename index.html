@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Dev Guard: Pre-Vite WebSocket stub & harmless disconnect suppression -->
+    <script>
+      (function(){
+        if (typeof window === 'undefined') return;
+        var OWS = window.WebSocket;
+        if (OWS) {
+          window.WebSocket = function(url, proto) {
+            var isHmr = false;
+            try {
+              var u = String(url || '');
+              if (proto === 'vite-hmr' || (Array.isArray(proto) && proto.indexOf('vite-hmr') !== -1) || u.indexOf('token=') !== -1 || u.indexOf('/@vite') !== -1 || u.indexOf('vite-hmr') !== -1) {
+                isHmr = true;
+              }
+            } catch (_) {}
+            if (isHmr) {
+              var L = {};
+              var d = {
+                url: String(url),
+                readyState: 1,
+                protocol: 'vite-hmr',
+                extensions: '',
+                bufferedAmount: 0,
+                binaryType: 'blob',
+                send: function() {},
+                close: function(c, r) {
+                  d.readyState = 3;
+                  var ev = { type: 'close', wasClean: true, code: c || 1000, reason: r || 'Normal closure' };
+                  (L['close'] || []).forEach(function(fn) { try { fn(ev); } catch (_) {} });
+                },
+                addEventListener: function(t, fn) {
+                  if (!L[t]) L[t] = [];
+                  L[t].push(fn);
+                  if (t === 'open') {
+                    setTimeout(function() { try { fn({ type: 'open', target: d }); } catch (_) {} }, 0);
+                  }
+                },
+                removeEventListener: function(t, fn) {
+                  if (L[t]) { L[t] = L[t].filter(function(cb) { return cb !== fn; }); }
+                },
+                dispatchEvent: function(e) {
+                  (L[e.type] || []).forEach(function(fn) { try { fn(e); } catch (_) {} });
+                  return true;
+                }
+              };
+              setTimeout(function() {
+                if (typeof d.onopen === 'function') {
+                  try { d.onopen({ type: 'open', target: d }); } catch (_) {}
+                }
+              }, 0);
+              return d;
+            }
+            return new OWS(url, proto);
+          };
+          window.WebSocket.prototype = OWS.prototype;
+          window.WebSocket.CONNECTING = 0;
+          window.WebSocket.OPEN = 1;
+          window.WebSocket.CLOSING = 2;
+          window.WebSocket.CLOSED = 3;
+        }
+
+        var oErr = console.error;
+        console.error = function() {
+          var args = Array.prototype.slice.call(arguments);
+          var txt = args.map(function(a) {
+            if (!a) return '';
+            if (a instanceof Error) return (a.message || '') + ' ' + (a.stack || '');
+            return String(a);
+          }).join(' ');
+          if (txt.indexOf('WebSocket closed without opened') !== -1 || (txt.indexOf('[vite]') !== -1 && txt.indexOf('websocket') !== -1)) {
+            return;
+          }
+          return oErr.apply(console, args);
+        };
+
+        window.addEventListener('unhandledrejection', function(e) {
+          var r = e.reason;
+          var m = (r && (r.message || String(r))) || '';
+          if (m.indexOf('WebSocket') !== -1 || m.indexOf('vite') !== -1) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        }, true);
+
+        window.addEventListener('error', function(e) {
+          var m = (e.message || '') + '';
+          if (m.indexOf('WebSocket') !== -1 || m.indexOf('vite') !== -1) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Global Job &amp; Career Radar – 3D Geospatial Intel, Market Analytics &amp; StealthNet</title>
+    <meta name="description" content="Discover high-yield tech careers with 3D geospatial intelligence, Recharts salary trajectory forecasts, anonymous StealthNet networking, and live job alerts." />
+    <meta name="keywords" content="career radar, tech salaries, AI jobs, 3D geospatial careers, quantitative finance, tech compensation, stealth networking, job alerts" />
+    <link rel="canonical" href="https://ais-pre-keikksd2dcsi4qe6bzstuj-50566079524.europe-west2.run.app" />
+    
+    <!-- PWA & Android Play Store TWA Mobile Meta Tags -->
+    <meta name="theme-color" content="#0f1720" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TalentRadar" />
+    <meta name="application-name" content="TalentRadar" />
+    <meta name="msapplication-TileColor" content="#0f1720" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+
+    <!-- OpenGraph / Facebook / LinkedIn -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="TalentRadar.OS" />
+    <meta property="og:url" content="https://ais-pre-keikksd2dcsi4qe6bzstuj-50566079524.europe-west2.run.app" />
+    <meta property="og:title" content="Global Job &amp; Career Radar – 3D Geospatial Intel &amp; Market Analytics" />
+    <meta property="og:description" content="Discover high-yield tech careers with 3D geospatial intelligence, Recharts salary trajectory forecasts, StealthNet zero-knowledge networking, and live job alerts." />
+    
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Global Job &amp; Career Radar – Next-Gen Career Intelligence" />
+    <meta name="twitter:description" content="Navigate global tech opportunities with 3D globe visualizations, salary forecasting, and anonymous professional networking." />
+    
+    <!-- Schema.org JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Global Job & Career Radar",
+      "url": "https://ais-pre-keikksd2dcsi4qe6bzstuj-50566079524.europe-west2.run.app",
+      "description": "3D Geospatial Career Intelligence, Recharts Market Analytics & Salary Trends, StealthNet Zero-Knowledge Network, Quantitative Financial Platform, and Public Ad Campaign Launchpad.",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "All modern web browsers",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
+    }
+    </script>
+
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,261 @@
+{
+  "sessions": [
+    [
+      "tr_ps_pro_monthly_1794679356288_lk8s1",
+      {
+        "tier": "pro_monthly",
+        "email": "mortyp1125@gmail.com",
+        "amountTotal": 4900,
+        "currency": "USD",
+        "status": "pending",
+        "createdAt": "2026-11-14T18:02:36.649Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794679467880_nsk0g",
+      {
+        "tier": "pro_monthly",
+        "email": "mortyp1125@gmail.com",
+        "amountTotal": 4900,
+        "currency": "KES",
+        "status": "pending",
+        "createdAt": "2026-11-14T18:04:28.066Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794681261749_tf8ig",
+      {
+        "tier": "pro_monthly",
+        "email": "test-ppp@talentradar.io",
+        "amountTotal": 2205,
+        "currency": "KES",
+        "status": "pending",
+        "pppCountryCode": "KE",
+        "pppDiscountPercent": 55,
+        "createdAt": "2026-11-14T18:34:22.082Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794685288092_6c2ls",
+      {
+        "tier": "pro_monthly",
+        "email": "ke@example.com",
+        "amountTotal": 2205,
+        "currency": "KES",
+        "status": "pending",
+        "pppCountryCode": "KE",
+        "pppDiscountPercent": 55,
+        "createdAt": "2026-11-14T19:41:28.379Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794692330029_buoxl",
+      {
+        "tier": "pro_monthly",
+        "email": "eu-buyer@example.com",
+        "amountTotal": 4900,
+        "currency": "KES",
+        "status": "pending",
+        "createdAt": "2026-11-14T21:38:50.301Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794692330316_cc2vj",
+      {
+        "tier": "pro_monthly",
+        "email": "us-buyer@example.com",
+        "amountTotal": 4900,
+        "currency": "USD",
+        "status": "pending",
+        "createdAt": "2026-11-14T21:38:50.592Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794692338217_29o6e",
+      {
+        "tier": "pro_monthly",
+        "email": "eu-all@example.com",
+        "amountTotal": 4900,
+        "currency": "USD",
+        "status": "pending",
+        "createdAt": "2026-11-14T21:38:58.889Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794692736409_4pov9",
+      {
+        "tier": "pro_monthly",
+        "email": "test-ke@example.com",
+        "amountTotal": 2205,
+        "currency": "KES",
+        "status": "pending",
+        "pppCountryCode": "KE",
+        "pppDiscountPercent": 55,
+        "createdAt": "2026-11-14T21:45:36.712Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794692736730_duk1n",
+      {
+        "tier": "pro_monthly",
+        "email": "test-ng@example.com",
+        "amountTotal": 2205,
+        "currency": "USD",
+        "status": "pending",
+        "pppCountryCode": "NG",
+        "pppDiscountPercent": 55,
+        "createdAt": "2026-11-14T21:45:36.976Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794692736983_xvygz",
+      {
+        "tier": "pro_monthly",
+        "email": "test-za@example.com",
+        "amountTotal": 2695,
+        "currency": "USD",
+        "status": "pending",
+        "pppCountryCode": "ZA",
+        "pppDiscountPercent": 45,
+        "createdAt": "2026-11-14T21:45:37.447Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794692737452_rlgvg",
+      {
+        "tier": "pro_monthly",
+        "email": "test-de@example.com",
+        "amountTotal": 4900,
+        "currency": "USD",
+        "status": "pending",
+        "createdAt": "2026-11-14T21:45:37.721Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794694022804_rnx6i",
+      {
+        "tier": "pro_monthly",
+        "amountTotal": 4900,
+        "currency": "KES",
+        "status": "pending",
+        "createdAt": "2026-11-14T22:07:03.045Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794694023051_q32tl",
+      {
+        "tier": "pro_monthly",
+        "amountTotal": 4900,
+        "currency": "KES",
+        "status": "pending",
+        "createdAt": "2026-11-14T22:07:03.421Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794694023427_xgyq1",
+      {
+        "tier": "pro_monthly",
+        "amountTotal": 4900,
+        "currency": "KES",
+        "status": "pending",
+        "createdAt": "2026-11-14T22:07:03.613Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794694079689_t4vvp",
+      {
+        "tier": "pro_monthly",
+        "amountTotal": 4900,
+        "currency": "KES",
+        "status": "pending",
+        "createdAt": "2026-11-14T22:07:59.864Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794694079870_t1cnl",
+      {
+        "tier": "pro_monthly",
+        "amountTotal": 4900,
+        "currency": "KES",
+        "status": "pending",
+        "createdAt": "2026-11-14T22:08:00.075Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794694080081_z42n4",
+      {
+        "tier": "pro_monthly",
+        "amountTotal": 4900,
+        "currency": "KES",
+        "status": "pending",
+        "createdAt": "2026-11-14T22:08:00.272Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794694093002_sq9zf",
+      {
+        "tier": "pro_monthly",
+        "amountTotal": 2205,
+        "currency": "KES",
+        "status": "pending",
+        "pppCountryCode": "KE",
+        "pppDiscountPercent": 55,
+        "createdAt": "2026-11-14T22:08:13.222Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794694093236_d655j",
+      {
+        "tier": "pro_monthly",
+        "amountTotal": 2205,
+        "currency": "USD",
+        "status": "pending",
+        "pppCountryCode": "NG",
+        "pppDiscountPercent": 55,
+        "createdAt": "2026-11-14T22:08:13.424Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794694093431_z3py3",
+      {
+        "tier": "pro_monthly",
+        "amountTotal": 4900,
+        "currency": "USD",
+        "status": "pending",
+        "createdAt": "2026-11-14T22:08:13.620Z"
+      }
+    ],
+    [
+      "tr_ps_pro_monthly_1794694520913_ji8e8",
+      {
+        "tier": "pro_monthly",
+        "amountTotal": 4900,
+        "currency": "USD",
+        "status": "pending",
+        "createdAt": "2026-11-14T22:15:21.111Z"
+      }
+    ]
+  ],
+  "subscriptions": [],
+  "referrals": [
+    [
+      "TR-3F56E1",
+      {
+        "code": "TR-3F56E1",
+        "referrerEmail": "qa-ref@example.com",
+        "clicks": 1,
+        "paidConversions": 0,
+        "availableMonthCredits": 0,
+        "totalMonthCreditsClaimed": 0,
+        "totalCommissionUsd": 0,
+        "conversions": [],
+        "createdAt": "2026-11-14T22:07:59.668Z",
+        "updatedAt": "2026-11-14T22:07:59.675Z"
+      }
+    ]
+  ],
+  "convertedReferralTxRefs": [],
+  "plans": {},
+  "webhookEvents": [],
+  "savedAt": "2026-11-14T22:15:21.111Z"
+}

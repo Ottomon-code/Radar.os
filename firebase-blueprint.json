@@ -1,0 +1,382 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile document containing core user information.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string" },
+        "securityClearance": { "type": "string" },
+        "subscriptionStatus": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "email", "role", "securityClearance", "createdAt", "updatedAt"]
+    },
+    "UserPreferences": {
+      "title": "UserPreferences",
+      "description": "User preferences, selected currency, and market configurations.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "currency": { "type": "string" },
+        "isPppMode": { "type": "boolean" },
+        "targetSector": { "type": "string" },
+        "targetSalary": { "type": "number" },
+        "targetRole": { "type": "string" },
+        "notificationAlerts": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "currency", "updatedAt"]
+    },
+    "SavedCareerPath": {
+      "title": "SavedCareerPath",
+      "description": "User-saved career path projections and target compensation goals.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "roleKey": { "type": "string" },
+        "roleTitle": { "type": "string" },
+        "targetSalary": { "type": "number" },
+        "notes": { "type": "string" },
+        "savedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "roleKey", "roleTitle", "savedAt"]
+    },
+    "SavedJob": {
+      "title": "SavedJob",
+      "description": "User bookmarked job opportunities from the Radar.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "jobId": { "type": "string" },
+        "title": { "type": "string" },
+        "company": { "type": "string" },
+        "location": { "type": "string" },
+        "salary": { "type": "string" },
+        "savedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "jobId", "title", "savedAt"]
+    },
+    "JobAlertSubscription": {
+      "title": "JobAlertSubscription",
+      "description": "User live ATS job alert criteria subscriptions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "keywords": { "type": "string" },
+        "location": { "type": "string" },
+        "minSalary": { "type": "number" },
+        "maxSalary": { "type": "number" },
+        "urgency": { "type": "string" },
+        "active": { "type": "boolean" },
+        "matchCount": { "type": "number" },
+        "createdAt": { "type": "object" },
+        "updatedAt": { "type": "object" }
+      },
+      "required": ["id", "userId", "title", "minSalary", "maxSalary", "active", "createdAt", "updatedAt"]
+    },
+    "JobAlertNotification": {
+      "title": "JobAlertNotification",
+      "description": "Live external ATS alert match notifications for a signed-in user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "subscriptionId": { "type": "string" },
+        "jobId": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "company": { "type": "string" },
+        "location": { "type": "string" },
+        "salaryLabel": { "type": "string" },
+        "urgency": { "type": "string" },
+        "applyUrl": { "type": "string" },
+        "matchedCriteriaLabel": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "object" }
+      },
+      "required": ["id", "userId", "subscriptionId", "jobId", "jobTitle", "company", "isRead", "createdAt"]
+    },
+    "StealthPersona": {
+      "title": "StealthPersona",
+      "description": "User encrypted StealthNet operator persona.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "handle": { "type": "string" },
+        "tier": { "type": "string" },
+        "badge": { "type": "string" },
+        "disclosureLevel": { "type": "string" },
+        "bio": { "type": "string" },
+        "primaryStack": { "type": "array", "items": { "type": "string" } },
+        "minCompensationFloor": { "type": "string" },
+        "openToBackchannel": { "type": "boolean" },
+        "updatedAt": { "type": "object" }
+      },
+      "required": ["userId", "handle", "tier", "badge", "disclosureLevel", "openToBackchannel", "updatedAt"]
+    },
+    "UserAtsNote": {
+      "title": "UserAtsNote",
+      "description": "Private operator outreach note linked to a live external ATS requisition.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "atsPostId": { "type": "string" },
+        "company": { "type": "string" },
+        "roleTitle": { "type": "string" },
+        "externalUrl": { "type": "string" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "object" }
+      },
+      "required": ["id", "userId", "atsPostId", "company", "roleTitle", "note", "createdAt"]
+    },
+    "StealthPost": {
+      "title": "StealthPost",
+      "description": "Authenticated community post in StealthNet.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "category": { "type": "string" },
+        "sector": { "type": "string" },
+        "authorHandle": { "type": "string" },
+        "authorBadge": { "type": "string" },
+        "authorTier": { "type": "string" },
+        "zkVerified": { "type": "boolean" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "compensationTag": { "type": "string" },
+        "locationTag": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "canDirectPing": { "type": "boolean" },
+        "isUrgent": { "type": "boolean" },
+        "createdAt": { "type": "object" },
+        "updatedAt": { "type": "object" }
+      },
+      "required": ["id", "authorUid", "category", "sector", "authorHandle", "title", "content", "createdAt", "updatedAt"]
+    },
+    "StealthComment": {
+      "title": "StealthComment",
+      "description": "Authenticated community comment under a StealthPost.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "authorHandle": { "type": "string" },
+        "authorBadge": { "type": "string" },
+        "authorTier": { "type": "string" },
+        "content": { "type": "string" },
+        "createdAt": { "type": "object" }
+      },
+      "required": ["id", "postId", "authorUid", "authorHandle", "content", "createdAt"]
+    },
+    "StealthReaction": {
+      "title": "StealthReaction",
+      "description": "Deduplicated user upvote or peer vouch reaction on a StealthPost.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string" },
+        "createdAt": { "type": "object" }
+      },
+      "required": ["id", "postId", "userId", "type", "createdAt"]
+    },
+    "StealthPing": {
+      "title": "StealthPing",
+      "description": "Direct user-to-user encrypted backchannel handshake request.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "postTitle": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "recipientUid": { "type": "string" },
+        "senderHandle": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "senderTier": { "type": "string" },
+        "targetHandle": { "type": "string" },
+        "offerCompensation": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "object" },
+        "updatedAt": { "type": "object" }
+      },
+      "required": ["id", "postId", "senderUid", "recipientUid", "senderHandle", "targetHandle", "message", "status", "createdAt", "updatedAt"]
+    },
+    "SubscriptionRecord": {
+      "title": "SubscriptionRecord",
+      "description": "Server-verified Paystack subscription status synchronized from webhook events (read-only for owner, no client writes).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "email": { "type": "string" },
+        "tier": { "type": "string" },
+        "reference": { "type": "string" },
+        "subscriptionCode": { "type": "string" },
+        "status": { "type": "string" },
+        "provider": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "tier", "status", "provider", "updatedAt"]
+    },
+    "VerifiedOffer": {
+      "title": "VerifiedOffer",
+      "description": "Community-submitted anonymized executive compensation benchmark.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "submittedByUid": { "type": "string" },
+        "company": { "type": "string", "maxLength": 120 },
+        "role": { "type": "string", "maxLength": 160 },
+        "sector": { "type": "string", "maxLength": 120 },
+        "totalAnnualComp": { "type": "number" },
+        "verificationBadge": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "submittedByUid", "company", "role", "verificationBadge", "createdAt"]
+    },
+    "ReferralRecord": {
+      "title": "ReferralRecord",
+      "description": "Server-verified Paystack referral attribution and earned reward ledger (owner read-only, zero client writes).",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "maxLength": 32 },
+        "referrerEmail": { "type": "string", "maxLength": 160 },
+        "referrerUid": { "type": "string", "maxLength": 64 },
+        "clicks": { "type": "number" },
+        "paidConversions": { "type": "number" },
+        "availableMonthCredits": { "type": "number" },
+        "totalMonthCreditsClaimed": { "type": "number" },
+        "totalCommissionUsd": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": [
+        "code",
+        "referrerEmail",
+        "clicks",
+        "paidConversions",
+        "availableMonthCredits",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ContactInquiry": {
+      "title": "ContactInquiry",
+      "description": "Server-managed inbound support, concierge, or acquisition inquiries (owner read-only, zero client writes).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "category": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "email", "subject", "message", "status", "createdAt"]
+    },
+    "AgencyPilotRequest": {
+      "title": "AgencyPilotRequest",
+      "description": "Server-managed agency white-label pilot requests (owner read-only, zero client writes).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "agencyName": { "type": "string" },
+        "contactName": { "type": "string" },
+        "workEmail": { "type": "string" },
+        "companyUrl": { "type": "string" },
+        "seats": { "type": "string" },
+        "planTier": { "type": "string" },
+        "notes": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "agencyName", "workEmail", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document restricted to the owner user"
+    },
+    "/users/{userId}/preferences/settings": {
+      "schema": "UserPreferences",
+      "description": "User configuration, active currency, and radar preference settings"
+    },
+    "/users/{userId}/careerPaths/{careerPathId}": {
+      "schema": "SavedCareerPath",
+      "description": "User saved career path trajectories"
+    },
+    "/users/{userId}/savedJobs/{savedJobId}": {
+      "schema": "SavedJob",
+      "description": "User bookmarked jobs and telemetry intercepts"
+    },
+    "/users/{userId}/jobAlerts/{alertId}": {
+      "schema": "JobAlertSubscription",
+      "description": "User live ATS job alert criteria subscriptions"
+    },
+    "/users/{userId}/alertNotifications/{notifId}": {
+      "schema": "JobAlertNotification",
+      "description": "User live external ATS job alert match notifications"
+    },
+    "/users/{userId}/stealthPersona/{personaId}": {
+      "schema": "StealthPersona",
+      "description": "User StealthNet operator persona configuration"
+    },
+    "/users/{userId}/atsNotes/{noteId}": {
+      "schema": "UserAtsNote",
+      "description": "User private outreach notes on live ATS boards"
+    },
+    "/stealthPosts/{postId}": {
+      "schema": "StealthPost",
+      "description": "Authenticated StealthNet community intelligence posts"
+    },
+    "/stealthPosts/{postId}/comments/{commentId}": {
+      "schema": "StealthComment",
+      "description": "Authenticated comments on a StealthPost"
+    },
+    "/stealthPosts/{postId}/reactions/{reactionId}": {
+      "schema": "StealthReaction",
+      "description": "Per-user deduplicated upvote or peer vouch reactions"
+    },
+    "/stealthPings/{pingId}": {
+      "schema": "StealthPing",
+      "description": "Private 1-on-1 encrypted backchannel handshake pings visible only to sender and recipient"
+    },
+    "/subscriptions/{subscriptionId}": {
+      "schema": "SubscriptionRecord",
+      "description": "Server-managed Paystack subscription verification records"
+    },
+    "/verifiedOffers/{offerId}": {
+      "schema": "VerifiedOffer",
+      "description": "Community compensation submissions queued for verification"
+    },
+    "/referrals/{referralCode}": {
+      "schema": "ReferralRecord",
+      "description": "Server-managed Paystack referral attribution, commissions, and free Pro month credits"
+    },
+    "/contactInquiries/{inquiryId}": {
+      "schema": "ContactInquiry",
+      "description": "Server-managed inbound user inquiries (owner read-only)"
+    },
+    "/agencyPilotRequests/{requestId}": {
+      "schema": "AgencyPilotRequest",
+      "description": "Server-managed agency pilot intake requests (owner read-only)"
+    }
+  }
+}
