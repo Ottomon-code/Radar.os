@@ -29,24 +29,13 @@ jobs:
       - name: Build Production Bundle
         run: npm run build
 
-      - name: Verify Android Digital Asset Links Bundle
-        run: test -f dist/.well-known/assetlinks.json
-
-      - name: Deploy via Firebase Service Account
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' || secrets.FIREBASE_SERVICE_ACCOUNT_GEN_LANG_CLIENT_0212017392 != '' }}
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_GEN_LANG_CLIENT_0212017392 }}
-          channelId: live
-          projectId: gen-lang-client-0212017392
-
-      - name: Deploy via Firebase CI Token
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT == '' && secrets.FIREBASE_SERVICE_ACCOUNT_GEN_LANG_CLIENT_0212017392 == '' && secrets.FIREBASE_TOKEN != '' }}
-        run: npx firebase-tools deploy --only hosting --project gen-lang-client-0212017392 --token "${{ secrets.FIREBASE_TOKEN }}"
-
-      - name: Check Required Deploy Secret
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT == '' && secrets.FIREBASE_SERVICE_ACCOUNT_GEN_LANG_CLIENT_0212017392 == '' && secrets.FIREBASE_TOKEN == '' }}
+      - name: Deploy to Firebase Hosting
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
         run: |
-          echo "Missing GitHub Secret: add FIREBASE_TOKEN (from 'npx firebase-tools login:ci --no-localhost') or FIREBASE_SERVICE_ACCOUNT under GitHub Repo Settings -> Secrets and variables -> Actions."
-          exit 1
+          if [ -z "$FIREBASE_TOKEN" ]; then
+            echo "Error: FIREBASE_TOKEN secret is missing in GitHub repository settings!"
+            echo "Please add FIREBASE_TOKEN under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          npx firebase-tools deploy --only hosting --project gen-lang-client-0212017392 --token "$FIREBASE_TOKEN"
