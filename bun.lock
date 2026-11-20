@@ -11,6 +11,7 @@
         "@react-three/fiber": "^9.8.2",
         "@tailwindcss/vite": "^4.3.3",
         "@types/qrcode": "^1.5.6",
+        "@types/react-is": "^19.3.0",
         "@vitejs/plugin-react": "^6.1.1",
         "cors": "^2.8.6",
         "d3": "^7.9.0",
@@ -25,6 +26,7 @@
         "qrcode": "^1.5.4",
         "react": "^19.0.1",
         "react-dom": "^19.0.1",
+        "react-is": "^19.3.1",
         "recharts": "^3.10.1",
         "three": "^0.186.1",
         "vite": "^8.3.0",
@@ -747,6 +749,8 @@
     "@types/react": ["@types/react@19.3.0", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg=="],
 
     "@types/react-dom": ["@types/react-dom@19.3.0", "", { "peerDependencies": { "@types/react": "^19.3.0" } }, "sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q=="],
+
+    "@types/react-is": ["@types/react-is@19.3.0", "", { "dependencies": { "@types/react": "*" } }, "sha512-pnL9JaaCgCeERlAwWLHBbv/sQV9jRFnp5ex7docWJ4/zA2UDwY2BrTSjEshBWJ81wyl37w9BSz22NW6i0qJhwA=="],
 
     "@types/react-reconciler": ["@types/react-reconciler@0.28.9", "", { "peerDependencies": { "@types/react": "*" } }, "sha512-HHM3nxyUZ3zAylX8ZEyrDNd2XZOnQ0D5XfunJF5FLQnZbHHYq4UWvW1QfelQNXv1ICNkwYhfxjwfnqivYB6bFg=="],
 
