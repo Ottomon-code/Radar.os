@@ -1,0 +1,52 @@
+name: Auto-Deploy to Firebase Hosting
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    name: Build & Publish to Firebase Hosting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: TypeScript Verification
+        run: npm run lint
+
+      - name: Build Production Bundle
+        run: npm run build
+
+      - name: Verify Android Digital Asset Links Bundle
+        run: test -f dist/.well-known/assetlinks.json
+
+      - name: Deploy via Firebase Service Account
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' || secrets.FIREBASE_SERVICE_ACCOUNT_GEN_LANG_CLIENT_0212017392 != '' }}
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT || secrets.FIREBASE_SERVICE_ACCOUNT_GEN_LANG_CLIENT_0212017392 }}
+          channelId: live
+          projectId: gen-lang-client-0212017392
+
+      - name: Deploy via Firebase CI Token
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT == '' && secrets.FIREBASE_SERVICE_ACCOUNT_GEN_LANG_CLIENT_0212017392 == '' && secrets.FIREBASE_TOKEN != '' }}
+        run: npx firebase-tools deploy --only hosting --project gen-lang-client-0212017392 --token "${{ secrets.FIREBASE_TOKEN }}"
+
+      - name: Check Required Deploy Secret
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT == '' && secrets.FIREBASE_SERVICE_ACCOUNT_GEN_LANG_CLIENT_0212017392 == '' && secrets.FIREBASE_TOKEN == '' }}
+        run: |
+          echo "Missing GitHub Secret: add FIREBASE_TOKEN (from 'npx firebase-tools login:ci --no-localhost') or FIREBASE_SERVICE_ACCOUNT under GitHub Repo Settings -> Secrets and variables -> Actions."
+          exit 1

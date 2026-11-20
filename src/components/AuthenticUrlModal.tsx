@@ -973,6 +973,33 @@ export default function AuthenticUrlModal({
                       {copiedKey === 'fb-deploy-cmd' ? 'Copied!' : 'Copy CLI'}
                     </button>
                   </div>
+                  <div className="p-3 rounded-lg bg-[#0a0f14] border border-[#38bdf8]/30 text-[11px] text-[#dce7f0] space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[#38bdf8] font-bold">GitHub Auto-Deploy Configured:</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-[#38bdf8]/15 text-[#38bdf8] border border-[#38bdf8]/40 font-bold">
+                        PUSH TO MAIN = AUTO-PUBLISH
+                      </span>
+                    </div>
+                    <p className="text-[#7a8b99] leading-relaxed">
+                      Every push to <code>main</code> / <code>master</code> automatically builds and deploys to{' '}
+                      <strong className="text-white">https://{activeHosts.apexDomain}</strong> once you add either{' '}
+                      <code className="text-[#22d3a5]">FIREBASE_TOKEN</code> or{' '}
+                      <code className="text-[#22d3a5]">FIREBASE_SERVICE_ACCOUNT</code> in{' '}
+                      <strong>GitHub Repo → Settings → Secrets and variables → Actions</strong>. Generate a CI token once via:
+                    </p>
+                    <div className="flex items-center justify-between gap-2 p-2 rounded bg-[#111a22] border border-[#1e2b36]">
+                      <code className="text-[10px] text-[#38bdf8] font-mono break-all">
+                        npx firebase-tools login:ci --no-localhost
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy('npx firebase-tools login:ci --no-localhost', 'fb-ci-token')}
+                        className="px-2 py-1 rounded bg-[#1e2b36] hover:bg-[#2a3b49] text-white font-bold text-[10px] shrink-0 cursor-pointer"
+                      >
+                        {copiedKey === 'fb-ci-token' ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
                   <div className="p-3 rounded-lg bg-[#0a0f14]/80 border border-[#1e2b36] text-[11px] text-[#7a8b99] space-y-1">
                     <div className="text-[#dce7f0] font-bold">Static Frontend ($0) vs. Backend API (/api/*):</div>
                     <p className="leading-relaxed">
