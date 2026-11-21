@@ -61,6 +61,16 @@ export async function initiateCheckout(options: CheckoutOptions): Promise<Checko
       }),
     });
 
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return {
+        success: false,
+        provider: 'paystack',
+        message:
+          'Payment backend (/api) is not connected on this domain yet. Deploy the server to Cloud Run and add the /api/** rewrite in firebase.json.',
+      };
+    }
+
     if (!response.ok) {
       const err = await response.json().catch(() => ({ error: 'Payment request failed' }));
       return {

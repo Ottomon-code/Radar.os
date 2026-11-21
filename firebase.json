@@ -8,7 +8,8 @@
     "ignore": [
       "firebase.json",
       ".git/**",
-      "**/node_modules/**"
+      "**/node_modules/**",
+      "**/assets/aistudio/**"
     ],
     "headers": [
       {

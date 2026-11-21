@@ -1102,30 +1102,21 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       };
     }
 
-    try {
-      const idToken = await currentUser.getIdToken();
-      const res = await fetch('/api/subscription/owner-unlock', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ action: 'unlock_sovereign' }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.success) {
-        return {
-          success: false,
-          message: data?.error || 'Server rejected Owner Bypass request.',
-        };
-      }
+    const isVerifiedFounderSession =
+      Boolean(currentUser.emailVerified) &&
+      currentUser.email?.trim().toLowerCase() === FOUNDER_OWNER_EMAIL;
 
+    const activateVerifiedOwnerLocally = (
+      reference: string,
+      customerEmail: string,
+      message: string
+    ) => {
       const info: VerifiedPaymentInfo = {
         isVerified: true,
-        sessionId: data.reference,
-        reference: data.reference,
+        sessionId: reference,
+        reference,
         provider: 'paystack',
-        customerEmail: data.customerEmail || currentUser.email || FOUNDER_OWNER_EMAIL,
+        customerEmail,
         amount: 0,
         currency: 'USD',
         status: 'active',
@@ -1139,11 +1130,56 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       persistState('sovereign', 'annual', searchCount, info);
       setIsPaywallOpen(false);
 
-      return {
-        success: true,
-        message: data.message || 'Owner Sovereign Bypass authorized cleanly.',
-      };
+      return { success: true, message };
+    };
+
+    try {
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch('/api/subscription/owner-unlock', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ action: 'unlock_sovereign' }),
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        if (isVerifiedFounderSession) {
+          return activateVerifiedOwnerLocally(
+            `owner_fb_${currentUser.uid.slice(0, 8)}`,
+            currentUser.email || FOUNDER_OWNER_EMAIL,
+            'Owner Sovereign unlocked via verified Google Auth. Note: deploy Cloud Run + /api/** rewrite to enable Paystack checkout & AI backend.'
+          );
+        }
+        return {
+          success: false,
+          message: 'Backend /api/subscription/owner-unlock is unreachable (static hosting returned HTML).',
+        };
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        return {
+          success: false,
+          message: data?.error || 'Server rejected Owner Bypass request.',
+        };
+      }
+
+      return activateVerifiedOwnerLocally(
+        data.reference,
+        data.customerEmail || currentUser.email || FOUNDER_OWNER_EMAIL,
+        data.message || 'Owner Sovereign Bypass authorized cleanly.'
+      );
     } catch (err: any) {
+      if (isVerifiedFounderSession) {
+        return activateVerifiedOwnerLocally(
+          `owner_fb_${currentUser.uid.slice(0, 8)}`,
+          currentUser.email || FOUNDER_OWNER_EMAIL,
+          'Owner Sovereign unlocked via verified Google Auth (offline/static API fallback).'
+        );
+      }
       return {
         success: false,
         message: err?.message || 'Unable to verify owner credentials with backend.',
@@ -1158,6 +1194,10 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       return { success: false, message: 'Sign in as owner first.' };
     }
 
+    const isVerifiedFounderSession =
+      Boolean(currentUser.emailVerified) &&
+      currentUser.email?.trim().toLowerCase() === FOUNDER_OWNER_EMAIL;
+
     try {
       const idToken = await currentUser.getIdToken();
       const res = await fetch('/api/subscription/owner-unlock', {
@@ -1168,6 +1208,19 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         },
         body: JSON.stringify({ action: 'preview_free' }),
       });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json') && isVerifiedFounderSession) {
+        setTier('recruit');
+        setVerifiedPaymentInfo(null);
+        setVerificationStatus('idle');
+        persistState('recruit', billingCycle, 0, null);
+        return {
+          success: true,
+          message: 'Switched to Free Recruit preview mode so you can test the paywall as a visitor.',
+        };
+      }
+
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.success) {
         return { success: false, message: data?.error || 'Could not toggle free preview mode.' };
@@ -1183,6 +1236,16 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         message: data.message || 'Switched to Free Recruit preview mode so you can test the paywall.',
       };
     } catch (err: any) {
+      if (isVerifiedFounderSession) {
+        setTier('recruit');
+        setVerifiedPaymentInfo(null);
+        setVerificationStatus('idle');
+        persistState('recruit', billingCycle, 0, null);
+        return {
+          success: true,
+          message: 'Switched to Free Recruit preview mode.',
+        };
+      }
       return { success: false, message: err?.message || 'Network error switching to preview mode.' };
     }
   }, [billingCycle, persistState]);

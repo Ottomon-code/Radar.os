@@ -75,6 +75,7 @@ export default defineConfig(() => {
         workbox: {
           maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10 MiB to cache Three.js and Recharts chunks
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,json}'],
+          globIgnores: ['**/assets/aistudio/**'],
           runtimeCaching: [
             {
               // Critical Career Salary Data & Market Analytics: Network-First with 3s timeout and 7-day offline fallback
