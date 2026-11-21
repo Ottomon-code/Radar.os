@@ -1837,6 +1837,115 @@ async function startServer() {
     }
   });
 
+  const paystackCustomerSyncNegativeCache = new Map<string, number>();
+
+  async function syncCustomerSubscriptionFromPaystack(
+    rawEmail: string,
+    opts: { bypassNegativeCache?: boolean } = {}
+  ): Promise<SubscriptionLedgerRecord | undefined> {
+    const email = rawEmail.trim().toLowerCase();
+    if (!email || !email.includes('@') || !isPaystackLive || !paystackSecret) {
+      return undefined;
+    }
+
+    const now = Date.now();
+    const cachedMissUntil = paystackCustomerSyncNegativeCache.get(email) || 0;
+    if (!opts.bypassNegativeCache && cachedMissUntil > now) {
+      return undefined;
+    }
+
+    try {
+      const custRes = await fetch(`https://api.paystack.co/customer/${encodeURIComponent(email)}`, {
+        headers: { Authorization: `Bearer ${paystackSecret}` },
+      });
+      const custJson: any = await custRes.json();
+      if (custRes.ok && custJson?.status && custJson?.data?.id) {
+        const customerId = custJson.data.id;
+        const customerCode = custJson.data.customer_code;
+        const localSub = subscriptionLedgerByEmail.get(email);
+
+        const subsRes = await fetch(`https://api.paystack.co/subscription?customer=${customerId}`, {
+          headers: { Authorization: `Bearer ${paystackSecret}` },
+        });
+        const subsJson: any = await subsRes.json();
+        const activeRemoteSub = Array.isArray(subsJson?.data)
+          ? subsJson.data.find((s: any) => s.status === 'active' || s.status === 'non-renewing')
+          : null;
+
+        if (activeRemoteSub) {
+          const resolvedTier =
+            resolveTierFromPlanCode(activeRemoteSub.plan?.plan_code) ||
+            (String(activeRemoteSub.plan?.name || '').toLowerCase().includes('sovereign')
+              ? 'agency_annual'
+              : 'pro_annual');
+          const txCurr = (activeRemoteSub.plan?.currency || paystackCurrency).toUpperCase();
+          const usdAmount =
+            txCurr === 'KES'
+              ? Math.round(((activeRemoteSub.amount || 0) / 100 / paystackUsdToKesRate) * 100) / 100
+              : (activeRemoteSub.amount || 0) / 100;
+          const mappedStatus = activeRemoteSub.status === 'non-renewing' ? 'non_renewing' : 'active';
+
+          recordSubscriptionActivation({
+            reference: localSub?.reference || activeRemoteSub.subscription_code,
+            tier: resolvedTier,
+            email,
+            amountTotal: usdAmount,
+            currency: txCurr,
+            status: mappedStatus,
+            subscriptionCode: activeRemoteSub.subscription_code,
+            planCode: activeRemoteSub.plan?.plan_code,
+            customerCode,
+            emailToken: activeRemoteSub.email_token,
+            nextPaymentDate: activeRemoteSub.next_payment_date,
+            cancelAtPeriodEnd: mappedStatus === 'non_renewing',
+            lastWebhookEvent: 'paystack.api_synced',
+          });
+          paystackCustomerSyncNegativeCache.delete(email);
+          return subscriptionLedgerByEmail.get(email);
+        }
+
+        const txRes = await fetch(
+          `https://api.paystack.co/transaction?customer=${customerId}&status=success&perPage=5`,
+          { headers: { Authorization: `Bearer ${paystackSecret}` } }
+        );
+        const txJson: any = await txRes.json();
+        const latestSuccess = Array.isArray(txJson?.data)
+          ? txJson.data.find((t: any) => t?.metadata?.tierId !== 'buyout_deposit')
+          : null;
+        if (latestSuccess?.reference) {
+          const tier =
+            latestSuccess.metadata?.tierId ||
+            resolveTierFromPlanCode(latestSuccess.plan) ||
+            'pro_annual';
+          const txCurr = (latestSuccess.currency || paystackCurrency).toUpperCase();
+          const usdTotal =
+            Number(latestSuccess.metadata?.usdEquivalent) ||
+            (txCurr === 'KES'
+              ? Math.round(((latestSuccess.amount || 0) / 100 / paystackUsdToKesRate) * 100) / 100
+              : (latestSuccess.amount || 0) / 100);
+
+          recordSubscriptionActivation({
+            reference: latestSuccess.reference,
+            tier,
+            email,
+            amountTotal: usdTotal,
+            currency: txCurr,
+            status: 'active',
+            customerCode,
+            lastWebhookEvent: 'paystack.transaction_synced',
+          });
+          paystackCustomerSyncNegativeCache.delete(email);
+          return subscriptionLedgerByEmail.get(email);
+        }
+      }
+    } catch (err) {
+      console.warn('Paystack live customer sync lookup error:', err);
+    }
+
+    paystackCustomerSyncNegativeCache.set(email, now + 30_000);
+    return undefined;
+  }
+
   // Backend Subscription Status Hook (used by SubscriptionProvider on mount / refresh)
   app.get('/api/subscription/status', async (req, res) => {
     try {
@@ -1967,6 +2076,10 @@ async function startServer() {
           }
         }
 
+        if (!sub) {
+          sub = await syncCustomerSubscriptionFromPaystack(email);
+        }
+
         if (sub) {
           const isSubActive = sub.status === 'active' || sub.status === 'non_renewing';
           return res.json({
@@ -2046,6 +2159,10 @@ async function startServer() {
           subscriptionLedgerByEmail.set(cleanEmail, sub);
           saveLedgerToDisk();
         }
+      }
+
+      if (!sub) {
+        sub = await syncCustomerSubscriptionFromPaystack(cleanEmail);
       }
 
       if (!sub) {
@@ -2509,93 +2626,13 @@ async function startServer() {
         return res.json({ found: false, active: false, message: 'No active subscription found for this email.' });
       }
 
-      // Query Paystack Customer + Subscriptions + Successful Transactions API directly
-      const custRes = await fetch(`https://api.paystack.co/customer/${encodeURIComponent(email)}`, {
-        headers: { Authorization: `Bearer ${paystackSecret}` },
-      });
-      const custJson: any = await custRes.json();
-      if (custRes.ok && custJson?.status && custJson?.data?.id) {
-        const customerId = custJson.data.id;
-        const customerCode = custJson.data.customer_code;
-
-        const subsRes = await fetch(`https://api.paystack.co/subscription?customer=${customerId}`, {
-          headers: { Authorization: `Bearer ${paystackSecret}` },
+      const syncedSub = await syncCustomerSubscriptionFromPaystack(email, { bypassNegativeCache: true });
+      if (syncedSub) {
+        return res.json({
+          found: true,
+          active: true,
+          subscription: syncedSub,
         });
-        const subsJson: any = await subsRes.json();
-        const activeRemoteSub = Array.isArray(subsJson?.data)
-          ? subsJson.data.find((s: any) => s.status === 'active' || s.status === 'non-renewing')
-          : null;
-
-        if (activeRemoteSub) {
-          const resolvedTier =
-            resolveTierFromPlanCode(activeRemoteSub.plan?.plan_code) ||
-            (String(activeRemoteSub.plan?.name || '').toLowerCase().includes('sovereign') ? 'agency_annual' : 'pro_annual');
-          const txCurr = (activeRemoteSub.plan?.currency || paystackCurrency).toUpperCase();
-          const usdAmount =
-            txCurr === 'KES'
-              ? Math.round(((activeRemoteSub.amount || 0) / 100 / paystackUsdToKesRate) * 100) / 100
-              : (activeRemoteSub.amount || 0) / 100;
-          const mappedStatus = activeRemoteSub.status === 'non-renewing' ? 'non_renewing' : 'active';
-
-          recordSubscriptionActivation({
-            reference: localSub?.reference || activeRemoteSub.subscription_code,
-            tier: resolvedTier,
-            email,
-            amountTotal: usdAmount,
-            currency: txCurr,
-            status: mappedStatus,
-            subscriptionCode: activeRemoteSub.subscription_code,
-            planCode: activeRemoteSub.plan?.plan_code,
-            customerCode,
-            emailToken: activeRemoteSub.email_token,
-            nextPaymentDate: activeRemoteSub.next_payment_date,
-            cancelAtPeriodEnd: mappedStatus === 'non_renewing',
-            lastWebhookEvent: 'paystack.api_synced',
-          });
-
-          return res.json({
-            found: true,
-            active: true,
-            subscription: subscriptionLedgerByEmail.get(email),
-          });
-        }
-
-        // Fall back to latest successful transaction for one-time annual/monthly checkouts without PLN_ plan
-        const txRes = await fetch(
-          `https://api.paystack.co/transaction?customer=${customerId}&status=success&perPage=5`,
-          { headers: { Authorization: `Bearer ${paystackSecret}` } }
-        );
-        const txJson: any = await txRes.json();
-        const latestSuccess = Array.isArray(txJson?.data) ? txJson.data[0] : null;
-        if (latestSuccess?.reference) {
-          const tier =
-            latestSuccess.metadata?.tierId ||
-            resolveTierFromPlanCode(latestSuccess.plan) ||
-            'pro_annual';
-          const txCurr = (latestSuccess.currency || paystackCurrency).toUpperCase();
-          const usdTotal =
-            Number(latestSuccess.metadata?.usdEquivalent) ||
-            (txCurr === 'KES'
-              ? Math.round(((latestSuccess.amount || 0) / 100 / paystackUsdToKesRate) * 100) / 100
-              : (latestSuccess.amount || 0) / 100);
-
-          recordSubscriptionActivation({
-            reference: latestSuccess.reference,
-            tier,
-            email,
-            amountTotal: usdTotal,
-            currency: txCurr,
-            status: 'active',
-            customerCode,
-            lastWebhookEvent: 'paystack.transaction_synced',
-          });
-
-          return res.json({
-            found: true,
-            active: true,
-            subscription: subscriptionLedgerByEmail.get(email),
-          });
-        }
       }
 
       if (localSub && (localSub.status === 'active' || localSub.status === 'non_renewing')) {
