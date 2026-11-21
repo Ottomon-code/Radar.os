@@ -51,12 +51,23 @@ const EMPTY_REPORT: WeeklyCoachingReport = {
   itemEvaluations: [],
 };
 
+const COACHING_CACHE_KEY = 'talent_radar_coaching_report_v1';
+
+function computeVaultSignature(savedJobs: any[], savedCareerPaths: any[], savedNews: any[]): string {
+  const jobIds = savedJobs.map((j) => String(j.id || '')).join(',');
+  const cpIds = savedCareerPaths.map((c) => String(c.id || c.targetRole || '')).join(',');
+  const newsIds = savedNews.map((n) => String(n.id || '')).join(',');
+  return `${savedJobs.length}:${jobIds}|${savedCareerPaths.length}:${cpIds}|${savedNews.length}:${newsIds}`;
+}
+
 export default function AICareerCoachingPanel({
   onNavigateToFinance,
   defaultExpanded = true,
   className = '',
 }: AICareerCoachingPanelProps) {
   const { savedJobs, savedCareerPaths, savedNews } = useSavedItems();
+  const liveSavedCount = savedJobs.length + savedCareerPaths.length + savedNews.length;
+  const vaultSignature = computeVaultSignature(savedJobs, savedCareerPaths, savedNews);
 
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [activeSubTab, setActiveSubTab] = useState<'brief' | 'stress' | 'items'>('brief');
@@ -65,15 +76,58 @@ export default function AICareerCoachingPanel({
   const [isScanning, setIsScanning] = useState(false);
   const [coachError, setCoachError] = useState<string | null>(null);
   const [showDeescalateModal, setShowDeescalateModal] = useState(false);
-  const [coachingReport, setCoachingReport] = useState<WeeklyCoachingReport>(EMPTY_REPORT);
+  const [coachingReport, setCoachingReport] = useState<WeeklyCoachingReport>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(COACHING_CACHE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.signature === vaultSignature && parsed?.report) {
+            return parsed.report as WeeklyCoachingReport;
+          }
+        }
+      } catch {
+        // Ignore malformed cache
+      }
+    }
+    return EMPTY_REPORT;
+  });
 
-  const runLiveCoachingAnalysis = useCallback(async () => {
+  const runLiveCoachingAnalysis = useCallback(async (forceRefresh = false) => {
+    if (liveSavedCount === 0) {
+      setCoachingReport(EMPTY_REPORT);
+      setCoachError(null);
+      setIsScanning(false);
+      return;
+    }
+
+    if (!forceRefresh && typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(COACHING_CACHE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.signature === vaultSignature && parsed?.report?.totalItemsAnalyzed > 0) {
+            setCoachingReport(parsed.report as WeeklyCoachingReport);
+            setCoachError(null);
+            setIsScanning(false);
+            return;
+          }
+        }
+      } catch {
+        // Proceed with network fetch
+      }
+    }
+
     setIsScanning(true);
     setCoachError(null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 28000);
+
     try {
       const res = await fetch('/api/coaching/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           savedJobs,
           savedCareerPaths,
@@ -83,27 +137,40 @@ export default function AICareerCoachingPanel({
       if (res.ok) {
         const data: WeeklyCoachingReport = await res.json();
         setCoachingReport(data);
+        try {
+          localStorage.setItem(
+            COACHING_CACHE_KEY,
+            JSON.stringify({ signature: vaultSignature, report: data })
+          );
+        } catch {
+          // Ignore storage quota issues
+        }
       } else {
         const errBody = await res.json().catch(() => ({}));
         setCoachError(
           errBody?.error ||
-            `Live Gemini coaching engine unavailable (${res.status}). Verify GEMINI_API_KEY in Settings > Secrets.`
+            `Live Gemini coaching engine temporarily busy (HTTP ${res.status}). Tap Recalculate to retry.`
         );
       }
     } catch (err: any) {
-      setCoachError(
-        err?.message ||
-          'Unable to reach /api/coaching/analyze. Check GEMINI_API_KEY in Settings > Secrets.'
-      );
+      if (err?.name === 'AbortError') {
+        setCoachError('Coaching analysis timed out while waiting for Gemini. Tap Recalculate to try again.');
+      } else {
+        setCoachError(
+          err?.message ||
+            'Unable to reach /api/coaching/analyze. Please retry in a moment.'
+        );
+      }
     } finally {
+      clearTimeout(timeoutId);
       setIsScanning(false);
     }
-  }, [savedJobs, savedCareerPaths, savedNews]);
+  }, [liveSavedCount, vaultSignature, savedJobs, savedCareerPaths, savedNews]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      runLiveCoachingAnalysis();
-    }, 250);
+      runLiveCoachingAnalysis(false);
+    }, 950);
     return () => clearTimeout(timer);
   }, [runLiveCoachingAnalysis]);
 
@@ -150,6 +217,8 @@ ${coachingReport.stressRelievers.map((s) => `• ${s}`).join('\n') || 'None dete
   };
 
   const directiveTotal = Math.max(1, coachingReport.weeklyDirectives.length);
+  const displayedArtifactCount =
+    coachingReport.totalItemsAnalyzed > 0 ? coachingReport.totalItemsAnalyzed : liveSavedCount;
 
   return (
     <div className={`panel bg-gradient-to-br from-[#0c131a] via-[#111a22] to-[#142332] border border-[#1e2b36] hover:border-[#3b82f6]/40 rounded-xl overflow-hidden shadow-2xl transition duration-200 ${className}`}>
@@ -171,7 +240,7 @@ ${coachingReport.stressRelievers.map((s) => `• ${s}`).join('\n') || 'None dete
                 {coachingReport.weekLabel}
               </span>
               <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#0a0f14] text-[#7a8b99] border border-[#1e2b36]">
-                {coachingReport.totalItemsAnalyzed} Saved Artifacts
+                {displayedArtifactCount} Saved Artifacts
               </span>
             </div>
 
@@ -179,7 +248,7 @@ ${coachingReport.stressRelievers.map((s) => `• ${s}`).join('\n') || 'None dete
               TRAJECTORY VELOCITY &amp; STRESS TELEMETRY
             </h2>
             <p className="text-xs text-[#7a8b99] font-mono mt-0.5">
-              Live Gemini 4 Hydrogen sentiment evaluation and cognitive load profiling synthesized from your bookmarked vault.
+              Live Gemini sentiment evaluation and cognitive load profiling synthesized from your bookmarked vault.
             </p>
           </div>
         </div>
@@ -187,9 +256,9 @@ ${coachingReport.stressRelievers.map((s) => `• ${s}`).join('\n') || 'None dete
         {/* Action Controls */}
         <div className="flex items-center gap-2 self-start md:self-auto font-mono text-xs">
           <button
-            onClick={runLiveCoachingAnalysis}
+            onClick={() => runLiveCoachingAnalysis(true)}
             disabled={isScanning}
-            title="Recalculate with Gemini 4 Hydrogen"
+            title="Recalculate coaching brief with Gemini"
             className="px-2.5 py-1.5 rounded-lg bg-[#0a0f14] border border-[#1e2b36] hover:border-[#22d3a5] text-[#7a8b99] hover:text-[#22d3a5] transition flex items-center gap-1.5"
           >
             <RotateCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin text-[#22d3a5]' : ''}`} />
@@ -387,16 +456,16 @@ ${coachingReport.stressRelievers.map((s) => `• ${s}`).join('\n') || 'None dete
                 <span>{coachError}</span>
               </div>
               <button
-                onClick={runLiveCoachingAnalysis}
-                className="px-2.5 py-1 rounded bg-[#0a0f14] border border-[#f87171]/40 hover:border-[#f87171] shrink-0"
+                onClick={() => runLiveCoachingAnalysis(true)}
+                className="px-2.5 py-1 rounded bg-[#0a0f14] border border-[#f87171]/40 hover:border-[#f87171] shrink-0 cursor-pointer"
               >
                 Retry
               </button>
             </div>
           )}
 
-          <div className="flex items-center justify-between border-b border-[#1e2b36] pb-3 text-xs">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1e2b36] pb-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setActiveSubTab('brief')}
                 className={`px-3 py-1.5 rounded-lg border transition ${
@@ -434,7 +503,9 @@ ${coachingReport.stressRelievers.map((s) => `• ${s}`).join('\n') || 'None dete
             </div>
 
             <span className="hidden sm:inline text-[11px] text-[#7a8b99]">
-              {coachingReport.totalItemsAnalyzed === 0
+              {isScanning
+                ? `Synthesizing ${liveSavedCount} saved items...`
+                : coachingReport.totalItemsAnalyzed === 0
                 ? 'Awaiting Saved Vault Items'
                 : 'Model Confidence: Live Gemini Assessment'}
             </span>
@@ -452,7 +523,9 @@ ${coachingReport.stressRelievers.map((s) => `• ${s}`).join('\n') || 'None dete
                   <span>{isScanning ? 'Analyzing saved vault...' : 'Live Gemini evaluation'}</span>
                 </div>
                 <p className="text-xs sm:text-sm text-[#dce7f0] leading-relaxed">
-                  {coachingReport.trajectoryInsights}
+                  {isScanning && liveSavedCount > 0 && coachingReport.totalItemsAnalyzed === 0
+                    ? `Synthesizing live Gemini coaching telemetry and burnout risk benchmarks across your ${liveSavedCount} saved artifacts...`
+                    : coachingReport.trajectoryInsights}
                 </p>
               </div>
 

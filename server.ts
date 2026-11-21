@@ -7,7 +7,7 @@ import crypto from 'crypto';
 import JSZip from 'jszip';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import {
   getLiveAtsJobs,
   searchLiveAtsJobs,
@@ -257,6 +257,7 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
 }
 
 const GEMINI_MODEL = 'gemini-4-hydrogen';
+const GEMINI_LITE_MODEL = 'gemini-3.1-flash-lite';
 
 function getGeminiClient(): GoogleGenAI {
   const apiKey = (process.env.GEMINI_API_KEY || '').trim();
@@ -267,7 +268,7 @@ function getGeminiClient(): GoogleGenAI {
     apiKey.startsWith('YOUR_')
   ) {
     const err: any = new Error(
-      'GEMINI_API_KEY is not configured. Open Settings > Secrets and add a valid Gemini API key.'
+      'GEMINI_API_KEY is not configured. Add a valid Gemini API key in your environment variables.'
     );
     err.statusCode = 503;
     err.code = 'GEMINI_NOT_CONFIGURED';
@@ -279,22 +280,52 @@ function getGeminiClient(): GoogleGenAI {
   });
 }
 
+function extractGeminiStatusCode(err: any): number {
+  const direct = Number(err?.statusCode || err?.status || err?.error?.code);
+  if (Number.isFinite(direct) && direct >= 400 && direct < 600) {
+    return direct;
+  }
+  const msg = String(err?.message || '');
+  if (msg.includes('"code":429') || msg.toLowerCase().includes('resource_exhausted') || msg.toLowerCase().includes('quota')) {
+    return 429;
+  }
+  if (msg.includes('"code":503') || msg.toLowerCase().includes('unavailable') || msg.toLowerCase().includes('high demand')) {
+    return 503;
+  }
+  if (msg.includes('"code":403') || msg.toLowerCase().includes('permission_denied') || msg.toLowerCase().includes('api key not valid')) {
+    return 403;
+  }
+  if (msg.includes('"code":400') || msg.toLowerCase().includes('invalid_argument')) {
+    return 400;
+  }
+  return 502;
+}
+
 function mapGeminiHttpError(err: any): {
   status: number;
   body: { error: string; code: string; hint: string };
 } {
-  const explicitStatus = Number(err?.statusCode || err?.status);
-  const msg = String(err?.message || 'Gemini inference failed');
-  const lower = msg.toLowerCase();
-  let status = 502;
+  const explicitStatus = extractGeminiStatusCode(err);
+  const rawMsg = String(err?.message || 'Gemini inference failed');
+  const lower = rawMsg.toLowerCase();
+  let status = explicitStatus;
   let code = err?.code || 'GEMINI_INFERENCE_ERROR';
+  let userMessage = rawMsg;
+  let hint = 'Please retry in a moment.';
 
-  if (explicitStatus === 503 || code === 'GEMINI_NOT_CONFIGURED') {
+  if (code === 'GEMINI_NOT_CONFIGURED') {
     status = 503;
-    code = 'GEMINI_NOT_CONFIGURED';
-  } else if (explicitStatus === 429 || lower.includes('429') || lower.includes('quota') || lower.includes('rate')) {
+    hint = 'Set a valid GEMINI_API_KEY environment variable on your server.';
+  } else if (explicitStatus === 429 || lower.includes('429') || lower.includes('quota') || lower.includes('resource_exhausted')) {
     status = 429;
     code = 'GEMINI_RATE_LIMITED';
+    userMessage = 'Gemini API free-tier quota or rate limit was temporarily reached. Wait a few seconds and retry.';
+    hint = 'Reduce burst requests or verify your Gemini API key quota in Google AI Studio.';
+  } else if (explicitStatus === 503 || lower.includes('unavailable') || lower.includes('high demand')) {
+    status = 503;
+    code = 'GEMINI_HIGH_DEMAND';
+    userMessage = 'Gemini model is temporarily experiencing high upstream demand. Please try again in a few seconds.';
+    hint = 'Upstream capacity spike — retrying shortly usually resolves this.';
   } else if (
     explicitStatus === 401 ||
     explicitStatus === 403 ||
@@ -304,6 +335,8 @@ function mapGeminiHttpError(err: any): {
   ) {
     status = 403;
     code = 'GEMINI_AUTH_ERROR';
+    userMessage = 'Gemini API rejected the configured GEMINI_API_KEY (invalid key or missing permissions).';
+    hint = 'Check GEMINI_API_KEY in your environment variables.';
   } else if (explicitStatus === 400 || lower.includes('invalid argument')) {
     status = 400;
     code = 'GEMINI_BAD_REQUEST';
@@ -312,11 +345,88 @@ function mapGeminiHttpError(err: any): {
   return {
     status,
     body: {
-      error: msg,
+      error: userMessage,
       code,
-      hint: 'Verify GEMINI_API_KEY in Settings > Secrets and retry.',
+      hint,
     },
   };
+}
+
+async function runWithTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          const err: any = new Error(`${label} timed out after ${timeoutMs}ms`);
+          err.statusCode = 504;
+          reject(err);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function generateGeminiContentResilient(
+  ai: GoogleGenAI,
+  params: {
+    contents: any;
+    config?: Record<string, any>;
+    preferLowThinking?: boolean;
+    allowLiteFallback?: boolean;
+    primaryTimeoutMs?: number;
+  }
+) {
+  const baseConfig = params.config ? { ...params.config } : {};
+  const primaryConfig =
+    params.preferLowThinking && !baseConfig.thinkingConfig
+      ? { ...baseConfig, thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+      : baseConfig;
+  const primaryTimeoutMs = params.primaryTimeoutMs ?? 9000;
+
+  try {
+    return {
+      response: await runWithTimeout(
+        ai.models.generateContent({
+          model: GEMINI_MODEL,
+          contents: params.contents,
+          config: Object.keys(primaryConfig).length > 0 ? primaryConfig : undefined,
+        }),
+        primaryTimeoutMs,
+        GEMINI_MODEL
+      ),
+      modelUsed: GEMINI_MODEL,
+    };
+  } catch (primaryErr: any) {
+    const status = extractGeminiStatusCode(primaryErr);
+    const isTimeout = primaryErr?.name === 'AbortError' || primaryErr?.name === 'TimeoutError' || status === 504;
+    const shouldRetryOrFallback = isTimeout || status === 429 || status === 503 || status === 500;
+    if (!shouldRetryOrFallback || params.allowLiteFallback === false) {
+      throw primaryErr;
+    }
+
+    // Brief backoff before fallback to higher-throughput Gemini Lite model
+    await new Promise((r) => setTimeout(r, 300));
+    const liteConfig = { ...baseConfig };
+    delete liteConfig.thinkingConfig;
+
+    const liteRes = await runWithTimeout(
+      ai.models.generateContent({
+        model: GEMINI_LITE_MODEL,
+        contents: params.contents,
+        config: Object.keys(liteConfig).length > 0 ? liteConfig : undefined,
+      }),
+      15000,
+      GEMINI_LITE_MODEL
+    );
+    return {
+      response: liteRes,
+      modelUsed: GEMINI_LITE_MODEL,
+    };
+  }
 }
 
 function getEmailDispatcherStatus(): {
@@ -3458,9 +3568,9 @@ Live External ATS Context (${fallbackAts.meta.boardsSucceeded}/${fallbackAts.met
 
 Provide a calibrated readiness assessment, realistic timeline in months, 4-stage salary progression, 4-year demand index forecast (2025-2028), 3 execution milestones, 4 prioritized skill gaps with honest current vs target proficiency levels (0-100), and 4 concise tactical negotiation/transition directives.`;
 
-      const aiRes = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const { response: aiRes, modelUsed } = await generateGeminiContentResilient(ai, {
         contents: prompt,
+        preferLowThinking: true,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -3552,7 +3662,7 @@ Provide a calibrated readiness assessment, realistic timeline in months, 4-stage
         matchingJobsCount: fallbackAts.totalCount,
         matchingJobs: sampleLiveRoles,
         atsMeta: fallbackAts.meta,
-        model: GEMINI_MODEL,
+        model: modelUsed,
       });
     } catch (err: any) {
       const mapped = mapGeminiHttpError(err);
@@ -4023,9 +4133,9 @@ ${proposedPrice ? `Proposed price: $${Number(proposedPrice).toLocaleString()} US
 
 Reply decisively and concisely in 2-4 sentences with institutional M&A rigor addressing escrow terms, technical diligence, or next execution milestone.`;
 
-      const aiRes = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const { response: aiRes } = await generateGeminiContentResilient(ai, {
         contents: prompt,
+        preferLowThinking: true,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -4337,11 +4447,11 @@ Reply decisively and concisely in 2-4 sentences with institutional M&A rigor add
       const ai = getGeminiClient();
       const { meta } = await getLiveAtsJobs(false);
 
-      const aiRes = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const { response: aiRes, modelUsed } = await generateGeminiContentResilient(ai, {
         contents: `Provide an executive career supervisor assessment for transitioning from "${currentRole || 'Senior Engineer'}" to "${targetRole || 'Principal Architect'}".
 Context: ${meta.totalOpeningsAcrossBoards} live openings tracked across ${meta.boardsSucceeded} ATS boards.
 Operator question: "${prompt || 'Evaluate leverage and negotiation strategy.'}"`,
+        preferLowThinking: true,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -4360,6 +4470,7 @@ Operator question: "${prompt || 'Evaluate leverage and negotiation strategy.'}"`
       const parsed = JSON.parse(aiRes.text || '{}');
       res.json({
         timestamp: new Date().toISOString(),
+        model: modelUsed,
         ...parsed,
       });
     } catch (err: any) {
@@ -4367,6 +4478,9 @@ Operator question: "${prompt || 'Evaluate leverage and negotiation strategy.'}"`
       res.status(mapped.status).json(mapped.body);
     }
   });
+
+  // In-memory Coaching Telemetry Cache (avoids re-running Gemini on identical saved vaults)
+  const coachingReportCache = new Map<string, { cachedAtMs: number; payload: any }>();
 
   // AI Career Coaching & Sentiment Analysis Endpoint — Gemini 4 Hydrogen Structured Telemetry
   app.post('/api/coaching/analyze', async (req, res) => {
@@ -4400,7 +4514,6 @@ Operator question: "${prompt || 'Evaluate leverage and negotiation strategy.'}"`
         });
       }
 
-      const ai = getGeminiClient();
       const digest = {
         savedJobs: savedJobs.slice(0, 12).map((j: any) => ({
           id: String(j.id || j.jobId || ''),
@@ -4424,87 +4537,53 @@ Operator question: "${prompt || 'Evaluate leverage and negotiation strategy.'}"`
         })),
       };
 
-      const prompt = `Analyze this user's saved career vault items and produce an objective weekly executive career coaching, burnout-risk, and market-sentiment report.
+      const digestHash = crypto.createHash('sha256').update(JSON.stringify(digest)).digest('hex');
+      const cachedReport = coachingReportCache.get(digestHash);
+      if (cachedReport && Date.now() - cachedReport.cachedAtMs < 30 * 60 * 1000) {
+        return res.json({ ...cachedReport.payload, cached: true });
+      }
+
+      const ai = getGeminiClient();
+      const prompt = `Analyze this user's saved career vault items and produce an objective weekly executive career coaching, burnout-risk, and market-sentiment JSON report.
 Saved Vault Payload (${totalItems} items total):
 ${JSON.stringify(digest)}
 
-Calibrate stressIndex (0-100), trajectoryVelocity (0-100), sentimentScore (-100 to 100), distribution percentages summing to 100, 3 actionable weeklyDirectives (categories strictly from: "Stress Regulation", "Trajectory Acceleration", "Negotiation Leverage"), and itemEvaluations matching the provided IDs.`;
+Return a valid JSON object matching this exact schema (keep strings crisp and concise):
+{
+  "stressIndex": number (0-100),
+  "stressLevel": "Restorative (Low)" | "Optimal Challenge (Balanced)" | "Elevated Tension (Caution)" | "Burnout Risk (High)",
+  "stressTrendDelta": number (-15 to 15),
+  "stressTrendDirection": "up" | "down" | "steady",
+  "stressDrivers": ["2-3 short bullets"],
+  "stressRelievers": ["2-3 short bullets"],
+  "trajectoryVelocity": number (0-100),
+  "trajectoryRating": "Hyper-Ascent" | "Calculated Expansion" | "Stealth Pivot" | "Consolidating Baseline",
+  "trajectoryTrendDelta": number (-15 to 15),
+  "trajectoryTrendDirection": "up" | "down" | "steady",
+  "trajectoryInsights": "2 concise sentences summarizing career momentum and risk.",
+  "overallSentiment": "Aggressively Bullish" | "Calculated & Optimistic" | "Balanced Equilibrium" | "High-Anxiety / Defensive",
+  "sentimentScore": number (-100 to 100),
+  "positivePct": number,
+  "neutralPct": number,
+  "stressPct": number,
+  "weeklyDirectives": [
+    { "category": "Stress Regulation" | "Trajectory Acceleration" | "Negotiation Leverage", "title": "short title", "advice": "1 concise sentence", "actionItem": "1 concrete step" }
+  ],
+  "itemEvaluations": [
+    { "id": "matching id", "type": "job" | "career" | "news", "title": "item title", "sentiment": "Bullish" | "Neutral" | "Cautious" | "High-Stress", "score": number (-100 to 100), "stressContribution": number (0-100), "keyTriggers": ["1-2 short tags"] }
+  ]
+}`;
 
-      const aiRes = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const { response: aiRes, modelUsed } = await generateGeminiContentResilient(ai, {
         contents: prompt,
+        preferLowThinking: true,
+        primaryTimeoutMs: 7500,
         config: {
           responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              stressIndex: { type: Type.INTEGER },
-              stressLevel: { type: Type.STRING },
-              stressTrendDelta: { type: Type.INTEGER },
-              stressTrendDirection: { type: Type.STRING },
-              stressDrivers: { type: Type.ARRAY, items: { type: Type.STRING } },
-              stressRelievers: { type: Type.ARRAY, items: { type: Type.STRING } },
-              trajectoryVelocity: { type: Type.INTEGER },
-              trajectoryRating: { type: Type.STRING },
-              trajectoryTrendDelta: { type: Type.INTEGER },
-              trajectoryTrendDirection: { type: Type.STRING },
-              trajectoryInsights: { type: Type.STRING },
-              overallSentiment: { type: Type.STRING },
-              sentimentScore: { type: Type.INTEGER },
-              positivePct: { type: Type.INTEGER },
-              neutralPct: { type: Type.INTEGER },
-              stressPct: { type: Type.INTEGER },
-              weeklyDirectives: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    category: { type: Type.STRING },
-                    title: { type: Type.STRING },
-                    advice: { type: Type.STRING },
-                    actionItem: { type: Type.STRING },
-                  },
-                  required: ['category', 'title', 'advice', 'actionItem'],
-                },
-              },
-              itemEvaluations: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    id: { type: Type.STRING },
-                    type: { type: Type.STRING },
-                    title: { type: Type.STRING },
-                    sentiment: { type: Type.STRING },
-                    score: { type: Type.INTEGER },
-                    stressContribution: { type: Type.INTEGER },
-                    keyTriggers: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  },
-                  required: ['id', 'type', 'title', 'sentiment', 'score', 'stressContribution', 'keyTriggers'],
-                },
-              },
-            },
-            required: [
-              'stressIndex',
-              'stressLevel',
-              'stressDrivers',
-              'stressRelievers',
-              'trajectoryVelocity',
-              'trajectoryRating',
-              'trajectoryInsights',
-              'overallSentiment',
-              'sentimentScore',
-              'positivePct',
-              'neutralPct',
-              'stressPct',
-              'weeklyDirectives',
-              'itemEvaluations',
-            ],
-          },
         },
       });
 
-      const parsed = JSON.parse(aiRes.text || '{}');
+      const parsed = parseJsonResponseText(aiRes.text || '{}');
       const stressIdx = Math.max(0, Math.min(100, Number(parsed.stressIndex) || 25));
       const trajVel = Math.max(0, Math.min(100, Number(parsed.trajectoryVelocity) || 65));
       const stressColor =
@@ -4516,7 +4595,7 @@ Calibrate stressIndex (0-100), trajectoryVelocity (0-100), sentimentScore (-100 
       const stressPctVal = Math.max(0, Math.min(100 - posPct, Number(parsed.stressPct) || 20));
       const neutPct = Math.max(0, 100 - posPct - stressPctVal);
 
-      res.json({
+      const responsePayload = {
         timestamp: now.toISOString(),
         weekLabel,
         totalItemsAnalyzed: totalItems,
@@ -4559,8 +4638,16 @@ Calibrate stressIndex (0-100), trajectoryVelocity (0-100), sentimentScore (-100 
         distribution: { positivePct: posPct, neutralPct: neutPct, stressPct: stressPctVal },
         weeklyDirectives: Array.isArray(parsed.weeklyDirectives) ? parsed.weeklyDirectives.slice(0, 4) : [],
         itemEvaluations: Array.isArray(parsed.itemEvaluations) ? parsed.itemEvaluations : [],
-        model: GEMINI_MODEL,
-      });
+        model: modelUsed,
+      };
+
+      if (coachingReportCache.size > 100) {
+        const oldestKey = coachingReportCache.keys().next().value;
+        if (oldestKey) coachingReportCache.delete(oldestKey);
+      }
+      coachingReportCache.set(digestHash, { cachedAtMs: Date.now(), payload: responsePayload });
+
+      res.json(responsePayload);
     } catch (err: any) {
       const mapped = mapGeminiHttpError(err);
       console.error('Error generating coaching report:', mapped.body.error);
@@ -4697,9 +4784,9 @@ Calibrate stressIndex (0-100), trajectoryVelocity (0-100), sentimentScore (-100 
 ${ownerGuardClause}
 Operator Mission Objective: "${userPrompt}"`;
 
-      const geminiRes = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const { response: geminiRes, modelUsed } = await generateGeminiContentResilient(ai, {
         contents: promptText,
+        preferLowThinking: true,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -4755,7 +4842,7 @@ Operator Mission Objective: "${userPrompt}"`;
         topic: userPrompt,
         timestamp: new Date().toLocaleTimeString(),
         status: 'COMPLETED',
-        model: GEMINI_MODEL,
+        model: modelUsed,
         ...parsed,
       });
     } catch (err: any) {
@@ -4788,8 +4875,7 @@ Operator Mission Objective: "${userPrompt}"`;
         ? history.slice(-6).map((h: any) => `${h.role || 'user'}: ${h.content || ''}`).join('\n')
         : '';
 
-      const aiRes = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const { response: aiRes, modelUsed } = await generateGeminiContentResilient(ai, {
         contents: `You are ${assistant.name} (${assistant.role} — ${assistant.callsign}).
 Live ATS Snapshot: ${meta.boardsSucceeded}/${meta.boardCount} boards live (${meta.totalOpeningsAcrossBoards} active openings at ${topOrgs}).
 ${guardClause}
@@ -4797,6 +4883,7 @@ ${recentHistory ? `Recent context:\n${recentHistory}\n` : ''}
 Operator prompt: "${cleanMessage}"
 
 Respond sharply in character as ${assistant.name} with concrete technical/market insights and suggest which peer agent (scout, strategist, envoy, or commander) should follow up next if helpful.`,
+        preferLowThinking: true,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -4817,7 +4904,7 @@ Respond sharply in character as ${assistant.name} with concrete technical/market
         success: true,
         agentId: assistant.id,
         agentName: assistant.name,
-        model: GEMINI_MODEL,
+        model: modelUsed,
         ...parsed,
       });
     } catch (err: any) {
@@ -4858,9 +4945,9 @@ Verified Technical Facts:
 - Stack: React, TypeScript, Express/Node.js, Firebase Auth & Firestore, Three.js 3D Globe, Gemini 4 Hydrogen synthesis, Paystack global + M-Pesa billing.
 - Additional Notes: ${customNotes || '100% bootstrapped, zero VC dilution, clean IP transfer via Escrow.com.'}`;
 
-      const aiRes = await ai.models.generateContent({
-        model: GEMINI_MODEL,
+      const { response: aiRes, modelUsed } = await generateGeminiContentResilient(ai, {
         contents: prompt,
+        preferLowThinking: true,
         config: {
           responseMimeType: 'application/json',
           responseSchema: {
@@ -4891,7 +4978,7 @@ Verified Technical Facts:
       res.json({
         ...parsed,
         generatedAt: new Date().toISOString(),
-        model: GEMINI_MODEL,
+        model: modelUsed,
       });
     } catch (err: any) {
       const mapped = mapGeminiHttpError(err);
@@ -5328,7 +5415,94 @@ Verified Technical Facts:
     cached?: boolean;
   }
 
+  const DAILY_INSIGHT_CACHE_FILE = path.join(LEDGER_DIR, 'daily-insight-cache.json');
   const dailyMarketInsightCache = new Map<string, DailyMarketInsightRecord>();
+  const dailyMarketInsightInFlight = new Map<string, Promise<DailyMarketInsightRecord>>();
+
+  function loadDailyInsightsFromDisk() {
+    try {
+      if (!fs.existsSync(DAILY_INSIGHT_CACHE_FILE)) return;
+      const raw = fs.readFileSync(DAILY_INSIGHT_CACHE_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        for (const [k, v] of Object.entries(parsed)) {
+          if (v && typeof v === 'object' && (v as any).headline && (v as any).summary) {
+            dailyMarketInsightCache.set(k, v as DailyMarketInsightRecord);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Could not load persisted daily market insights:', err);
+    }
+  }
+
+  function saveDailyInsightsToDisk() {
+    try {
+      if (!fs.existsSync(LEDGER_DIR)) {
+        fs.mkdirSync(LEDGER_DIR, { recursive: true });
+      }
+      const entries = Array.from(dailyMarketInsightCache.entries()).slice(-14);
+      const serialized = Object.fromEntries(entries);
+      const tmpFile = `${DAILY_INSIGHT_CACHE_FILE}.tmp`;
+      fs.writeFileSync(tmpFile, JSON.stringify(serialized, null, 2), 'utf-8');
+      fs.renameSync(tmpFile, DAILY_INSIGHT_CACHE_FILE);
+    } catch (err) {
+      console.warn('Failed to persist daily market insight cache:', err);
+    }
+  }
+
+  loadDailyInsightsFromDisk();
+
+  function parseDailyInsightFields(rawText: string, rawChunks: any[] = [], dateKey: string, focusArea: string): DailyMarketInsightRecord {
+    const cleanField = (val: string) =>
+      val
+        .replace(/^[*_`#>\s]+|[*_`]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const headlineMatch = rawText.match(/(?:^|\n)HEADLINE:\s*(.+)/i);
+    const perspectiveMatch = rawText.match(/(?:^|\n)PERSPECTIVE:\s*([\s\S]*?)(?=\nKEYWORD:|$)/i);
+    const keywordMatch = rawText.match(/(?:^|\n)KEYWORD:\s*(.+)/i);
+
+    const fallbackLines = rawText
+      .split('\n')
+      .map((line) => cleanField(line))
+      .filter(Boolean);
+
+    const headline = cleanField(headlineMatch?.[1] || fallbackLines[0] || '');
+    const summary = cleanField(perspectiveMatch?.[1] || fallbackLines.slice(1, 3).join(' ') || '');
+    const suggestedQuery = cleanField(keywordMatch?.[1] || 'AI Infrastructure').slice(0, 40) || 'AI Infrastructure';
+
+    const seenUrls = new Set<string>();
+    const sources: DailyMarketInsightSource[] = [];
+    for (const chunk of rawChunks) {
+      const uri = chunk?.web?.uri;
+      if (!uri || !uri.startsWith('http') || seenUrls.has(uri)) continue;
+      seenUrls.add(uri);
+      let fallbackHost = 'Web Source';
+      try {
+        fallbackHost = new URL(uri).hostname.replace(/^www\./, '');
+      } catch {
+        // Keep default label
+      }
+      sources.push({
+        title: cleanField(chunk?.web?.title || fallbackHost).slice(0, 80),
+        url: uri,
+      });
+      if (sources.length >= 4) break;
+    }
+
+    return {
+      dateKey,
+      focusArea,
+      headline,
+      summary,
+      suggestedQuery,
+      sources,
+      fetchedAt: new Date().toISOString(),
+      cached: false,
+    };
+  }
 
   app.get('/api/market/daily-insight', async (req, res) => {
     const rawDate = typeof req.query.date === 'string' ? req.query.date.trim() : '';
@@ -5344,114 +5518,111 @@ Verified Technical Facts:
       }
     }
 
-    const geminiApiKey = process.env.GEMINI_API_KEY;
-    if (!geminiApiKey) {
-      return res.status(503).json({
-        error: 'GEMINI_API_KEY is not configured. Check your Settings > Secrets panel.',
-      });
+    try {
+      getGeminiClient();
+    } catch (keyErr: any) {
+      const mapped = mapGeminiHttpError(keyErr);
+      return res.status(mapped.status).json(mapped.body);
     }
 
-    try {
-      const ai = new GoogleGenAI({
-        apiKey: geminiApiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
+    const inFlight = dailyMarketInsightInFlight.get(dateKey);
+    if (inFlight && !forceRefresh) {
+      try {
+        const result = await inFlight;
+        return res.json({ ...result, cached: true });
+      } catch (err: any) {
+        const mapped = mapGeminiHttpError(err);
+        return res.status(mapped.status).json(mapped.body);
+      }
+    }
 
-      const prompt = `Search the latest real-world tech industry news and hiring reports as of ${dateKey} focusing on AI engineering, accelerated compute, distributed systems, and high-compensation software engineering talent demand.
+    const task = (async (): Promise<DailyMarketInsightRecord> => {
+      const ai = getGeminiClient();
+      const searchPrompt = `Search the latest real-world tech industry news and hiring reports as of ${dateKey} focusing on AI engineering, accelerated compute, distributed systems, and high-compensation software engineering talent demand.
 
 Produce ONE curated daily market insight briefing for senior engineers and technical leaders using this exact three-line plain-text format (no markdown formatting, no asterisks, no bullet points):
 HEADLINE: <single crisp title-case headline summarizing the most noteworthy current trend, max 14 words>
 PERSPECTIVE: <exactly 2 concise sentences explaining what this development means for AI & high-comp engineering hiring demand, salary leverage, or equity benchmarks>
 KEYWORD: <short 1 to 3 word skill or role search query matching this trend, e.g. AI Infrastructure, CUDA, Distributed Systems, Reasoning Agents>`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: prompt,
-        config: {
-          tools: [{ googleSearch: {} }],
-        },
-      });
-
-      const rawText = (response.text || '').trim();
-      if (!rawText) {
-        return res.status(502).json({
-          error: 'Search grounding returned an empty response. Please try refreshing again.',
-        });
-      }
-
-      const cleanField = (val: string) =>
-        val
-          .replace(/^[*_`#>\s]+|[*_`]+$/g, '')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-      const headlineMatch = rawText.match(/(?:^|\n)HEADLINE:\s*(.+)/i);
-      const perspectiveMatch = rawText.match(/(?:^|\n)PERSPECTIVE:\s*([\s\S]*?)(?=\nKEYWORD:|$)/i);
-      const keywordMatch = rawText.match(/(?:^|\n)KEYWORD:\s*(.+)/i);
-
-      const fallbackLines = rawText
-        .split('\n')
-        .map((line) => cleanField(line))
-        .filter(Boolean);
-
-      const headline = cleanField(headlineMatch?.[1] || fallbackLines[0] || 'AI Infrastructure Talent Demand Shapes 2026 Compensation Bands');
-      const summary = cleanField(
-        perspectiveMatch?.[1] ||
-          fallbackLines.slice(1, 3).join(' ') ||
-          'Frontier compute teams continue concentrating top-decile equity packages around distributed systems and inference optimization roles.'
-      );
-      const suggestedQuery = cleanField(keywordMatch?.[1] || 'AI Infrastructure').slice(0, 40) || 'AI Infrastructure';
-
-      const rawChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-      const seenUrls = new Set<string>();
-      const sources: DailyMarketInsightSource[] = [];
-
-      for (const chunk of rawChunks) {
-        const uri = chunk?.web?.uri;
-        if (!uri || !uri.startsWith('http') || seenUrls.has(uri)) continue;
-        seenUrls.add(uri);
-        let fallbackHost = 'Web Source';
-        try {
-          fallbackHost = new URL(uri).hostname.replace(/^www\./, '');
-        } catch {
-          // Keep default label
+      try {
+        const response = await runWithTimeout(
+          ai.models.generateContent({
+            model: GEMINI_MODEL,
+            contents: searchPrompt,
+            config: {
+              tools: [{ googleSearch: {} }],
+              thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            },
+          }),
+          9000,
+          'DailyInsightSearch'
+        );
+        const rawText = (response.text || '').trim();
+        if (!rawText) {
+          throw new Error('Search grounding returned an empty response.');
         }
-        sources.push({
-          title: cleanField(chunk?.web?.title || fallbackHost).slice(0, 80),
-          url: uri,
-        });
-        if (sources.length >= 4) break;
+        const rawChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        return parseDailyInsightFields(rawText, rawChunks, dateKey, 'AI & High-Comp Engineering');
+      } catch (searchErr: any) {
+        const status = extractGeminiStatusCode(searchErr);
+        // When free-tier Google Search grounding hits 429/503/504, synthesize via Gemini Lite grounded in live ATS board scrapes
+        if (status === 429 || status === 503 || status === 504 || status === 400) {
+          const { jobs, meta } = await getLiveAtsJobs(false);
+          const topOrgs = Array.from(new Set(jobs.map((j) => j.company))).slice(0, 8).join(', ');
+          const sampleRoles = jobs
+            .slice(0, 10)
+            .map((j) => `${j.company}: ${j.title} (${j.location}, ${j.salaryRange})`)
+            .join('; ');
+
+          const atsGroundedPrompt = `You are a senior compensation & engineering market analyst writing today's briefing (${dateKey}).
+Ground your briefing strictly in these live verified external ATS board openings right now (${meta.boardsSucceeded}/${meta.boardCount} boards live, ${meta.totalOpeningsAcrossBoards} total active openings at ${topOrgs}):
+Sample live roles: ${sampleRoles}
+
+Produce ONE curated daily market insight briefing using this exact three-line plain-text format (no markdown formatting, no asterisks, no bullet points):
+HEADLINE: <single crisp title-case headline summarizing the sharpest hiring or compensation signal in these live boards, max 14 words>
+PERSPECTIVE: <exactly 2 concise sentences explaining what this live ATS demand means for AI & high-comp engineering hiring leverage or salary benchmarks>
+KEYWORD: <short 1 to 3 word skill or role search query matching this trend, e.g. AI Infrastructure, Rust, Distributed Systems, Robotics>`;
+
+          const liteRes = await ai.models.generateContent({
+            model: GEMINI_LITE_MODEL,
+            contents: atsGroundedPrompt,
+          });
+          const liteText = (liteRes.text || '').trim();
+          if (!liteText) {
+            throw searchErr;
+          }
+          return parseDailyInsightFields(
+            liteText,
+            [],
+            dateKey,
+            `AI & High-Comp Engineering (${meta.boardsSucceeded}/${meta.boardCount} Live ATS Boards)`
+          );
+        }
+        throw searchErr;
       }
+    })();
 
-      const record: DailyMarketInsightRecord = {
-        dateKey,
-        focusArea: 'AI & High-Comp Engineering',
-        headline,
-        summary,
-        suggestedQuery,
-        sources,
-        fetchedAt: new Date().toISOString(),
-        cached: false,
-      };
+    dailyMarketInsightInFlight.set(dateKey, task);
 
+    try {
+      const record = await task;
       dailyMarketInsightCache.set(dateKey, record);
+      saveDailyInsightsToDisk();
       return res.json(record);
     } catch (err: any) {
-      console.error('Daily Market Insight Gemini Search error:', err);
-      const statusCode = Number(err?.status) || 502;
-      const errMessage =
-        statusCode === 429
-          ? 'Daily insight quota temporarily reached. Please wait a moment and try again.'
-          : statusCode === 403 || statusCode === 400
-          ? 'Search API configuration requires a valid key in Settings > Secrets.'
-          : err?.message || 'Unable to fetch grounded market insight right now.';
-      return res.status(statusCode >= 400 && statusCode < 600 ? statusCode : 502).json({
-        error: errMessage,
+      console.error('Daily Market Insight Gemini error:', err);
+      const staleCached = dailyMarketInsightCache.get(dateKey);
+      if (staleCached) {
+        return res.json({ ...staleCached, cached: true });
+      }
+      const mapped = mapGeminiHttpError(err);
+      return res.status(mapped.status).json({
+        error: mapped.body.error,
+        code: mapped.body.code,
       });
+    } finally {
+      dailyMarketInsightInFlight.delete(dateKey);
     }
   });
 

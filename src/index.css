@@ -29,14 +29,15 @@ body {
 .tabs {
   display: flex;
   gap: 8px;
-  margin: 14px 0 18px;
+  margin: 12px 0 16px;
   flex-wrap: nowrap;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1200px) {
   .tabs {
     flex-wrap: wrap;
     overflow-x: visible;
@@ -48,14 +49,15 @@ body {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border);
-  padding: 10px 16px;
+  padding: 8px 13px;
   border-radius: 10px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
+  white-space: nowrap;
   transition: all 0.2s;
   font-family: monospace, ui-monospace, sans-serif;
 }
