@@ -236,7 +236,8 @@ function isAllowedCorsOrigin(origin: string | undefined): boolean {
       hostname.endsWith(`.${domainHosts.apexDomain}`) ||
       hostname.endsWith('.run.app') ||
       hostname.endsWith('.firebaseapp.com') ||
-      hostname.endsWith('.web.app')
+      hostname.endsWith('.web.app') ||
+      hostname.endsWith('.onrender.com')
     ) {
       return true;
     }

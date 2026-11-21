@@ -45,7 +45,8 @@ export function isManagedFreeSubdomain(domain: string | undefined | null): boole
     clean.endsWith('.web.app') ||
     clean.endsWith('.firebaseapp.com') ||
     clean.endsWith('.workers.dev') ||
-    clean.endsWith('.run.app')
+    clean.endsWith('.run.app') ||
+    clean.endsWith('.onrender.com')
   );
 }
 

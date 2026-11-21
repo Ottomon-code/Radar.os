@@ -1,26 +1,19 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Radar,
   ShieldCheck,
-  Cpu,
-  Terminal,
   Radio,
-  Sparkles,
   Bookmark,
-  BadgeDollarSign,
-  Building2,
   Lock,
   Crown,
   BellRing,
   Megaphone,
-  Zap,
   Globe,
   Compass,
   FolderGit2,
   FileText,
   Scale,
   Smartphone,
-  User as UserIcon,
   LogIn,
   KeyRound,
   QrCode,
@@ -30,14 +23,15 @@ import {
   Unlock,
   Gift,
   HardDrive,
+  ChevronDown,
+  Wrench,
+  Sparkles,
 } from 'lucide-react';
 import { useSubscription } from '../context/SubscriptionContext';
 import { SubscriptionStatusIndicator } from '../hooks/useSubscriptionStatus';
 import { useJobAlerts } from '../context/JobAlertsContext';
 import { useCurrency } from '../context/CurrencyContext';
 import { useAuth } from '../context/AuthContext';
-import { PWAInstallButton } from './PWAInstallButton';
-import { OfflineCacheStatusBadge } from './OfflineCacheStatusBadge';
 
 interface HeaderProps {
   activeJobsCount?: number;
@@ -67,11 +61,8 @@ interface HeaderProps {
 
 export default function Header({
   activeJobsCount = 7,
-  unreadCommsCount = 2,
   bookmarksCount = 0,
-  activeTab,
   setActiveTab,
-  onOpenSaleModal,
   onOpenReferralModal,
   onOpenAlertsModal,
   onOpenAuthenticUrlModal,
@@ -90,336 +81,370 @@ export default function Header({
   onOpenDiligenceVaultModal,
   onOpenDriveModal,
 }: HeaderProps) {
-  const { tier, isOwner, isOwnerBypassActive, openPaywall, openBillingPortal, ownerBypassUnlock } = useSubscription();
+  const { tier, isOwner, isOwnerBypassActive, openPaywall, openBillingPortal, ownerBypassUnlock } =
+    useSubscription();
   const { subscriptions, unreadCount } = useJobAlerts();
   const { currency, currencySymbol, isPppMode } = useCurrency();
   const { user } = useAuth();
 
+  const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
+  const ownerMenuRef = useRef<HTMLDivElement>(null);
+  const toolsMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (ownerMenuRef.current && !ownerMenuRef.current.contains(target)) {
+        setOwnerMenuOpen(false);
+      }
+      if (toolsMenuRef.current && !toolsMenuRef.current.contains(target)) {
+        setToolsMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOwnerMenuOpen(false);
+        setToolsMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const runOwnerAction = (fn?: () => void) => {
+    setOwnerMenuOpen(false);
+    fn?.();
+  };
+
+  const runToolAction = (fn?: () => void) => {
+    setToolsMenuOpen(false);
+    fn?.();
+  };
+
   return (
-    <header className="border-b border-[#1e2b36] pb-4 mb-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Logo and Tactical Identification */}
-        <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-gradient-to-br from-[#111a22] to-[#1e2b36] border border-[#22d3a5]/40 text-[#22d3a5] shadow-[0_0_15px_rgba(34,211,165,0.15)]">
-            <Radar className="w-6 h-6 animate-spin" style={{ animationDuration: '14s' }} />
-            <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#22d3a5]" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-[#dce7f0] font-mono">
-                TALENT_RADAR<span className="text-[#22d3a5]">.OS</span>
-              </h1>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-[#22d3a5]/10 text-[#22d3a5] border border-[#22d3a5]/30 font-mono tracking-wider font-semibold">
-                V4.2-LIVE
-              </span>
+    <header className="border-b border-[#1e2b36] pb-3.5 mb-3">
+      {/* Row 1: Brand + Primary Account / Billing / Compact Owner Menu */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[#111a22] to-[#1e2b36] border border-[#22d3a5]/40 text-[#22d3a5] shrink-0">
+              <Radar className="w-5 h-5 animate-spin" style={{ animationDuration: '14s' }} />
+              <div className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#22d3a5]" />
             </div>
-            <p className="text-xs text-[#7a8b99] font-mono">
-              3D Geospatial Radar • StealthNet ZK Network • Quantitative Career &amp; Equity Platform
-            </p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-[#dce7f0] font-mono truncate">
+                  TALENT_RADAR<span className="text-[#22d3a5]">.OS</span>
+                </h1>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#22d3a5]/10 text-[#22d3a5] border border-[#22d3a5]/30 font-mono font-semibold shrink-0">
+                  LIVE
+                </span>
+              </div>
+              <p className="text-[11px] text-[#7a8b99] font-mono truncate">
+                Live Career Radar • Salary Modeling • AI Strategy
+              </p>
+            </div>
+          </div>
+
+          {/* Mobile quick Sign-in or Owner Badge */}
+          <div className="sm:hidden shrink-0">
+            {onOpenAuthModal && (
+              <button
+                type="button"
+                onClick={onOpenAuthModal}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-mono font-bold cursor-pointer ${
+                  user
+                    ? 'bg-[#111a22] border-[#22d3a5]/50 text-[#22d3a5]'
+                    : 'bg-[#22d3a5]/15 border-[#22d3a5] text-[#22d3a5]'
+                }`}
+              >
+                {user ? (
+                  <>
+                    <span className="w-4 h-4 rounded-full bg-[#22d3a5] text-black flex items-center justify-center text-[10px] font-bold">
+                      {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                    </span>
+                    <span className="max-w-[72px] truncate">
+                      {user.displayName?.split(' ')[0] || user.email?.split('@')[0]}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-3.5 h-3.5" />
+                    <span>LOG IN</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Tactical Status Badges & App For Sale Quick Action */}
+        {/* Right Controls: Auth (Desktop), Clearance, Billing, Owner Menu */}
         <div className="flex flex-wrap items-center gap-2 text-xs font-mono">
-          {/* Contribute Verified Offer Benchmark Button */}
-          {onOpenContributeModal && (
+          {onOpenAuthModal && (
             <button
-              onClick={onOpenContributeModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#22d3a5]/20 hover:bg-[#22d3a5]/30 border border-[#22d3a5] text-[#22d3a5] font-bold transition shadow-[0_0_12px_rgba(34,211,165,0.2)] cursor-pointer active:scale-95"
-              title="Submit an executive compensation offer benchmark for verification audit"
+              type="button"
+              onClick={onOpenAuthModal}
+              className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border font-bold transition cursor-pointer ${
+                user
+                  ? 'bg-[#111a22] hover:bg-[#162738] border-[#22d3a5]/50 text-[#dce7f0]'
+                  : 'bg-[#22d3a5]/15 hover:bg-[#22d3a5]/25 border-[#22d3a5] text-[#22d3a5]'
+              }`}
+              title={user ? 'View profile and cloud sync' : 'Sign in or create an account'}
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#22d3a5]" />
-              <span>★ SUBMIT OFFER BENCHMARK</span>
-            </button>
-          )}
-
-          {/* Agency Sovereign Checkout */}
-          {onOpenAgencyPilotModal && (
-            <button
-              onClick={onOpenAgencyPilotModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#38bdf8]/20 hover:bg-[#38bdf8]/30 border border-[#38bdf8] text-[#38bdf8] font-bold transition shadow-[0_0_12px_rgba(56,189,248,0.2)] cursor-pointer active:scale-95"
-              title="Register recruitment agency & authorize Sovereign clearance via Paystack"
-            >
-              <Crown className="w-3.5 h-3.5 text-[#38bdf8]" />
-              <span>👑 AGENCY SOVEREIGN</span>
-            </button>
-          )}
-
-          {/* 2026 Frontier AI Comp Report Hub */}
-          {onOpenFrontierReportModal && (
-            <button
-              onClick={onOpenFrontierReportModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#fbbf24]/20 hover:bg-[#fbbf24]/30 border border-[#fbbf24] text-[#fbbf24] font-bold transition shadow-[0_0_12px_rgba(251,191,36,0.2)] cursor-pointer active:scale-95"
-              title="View & download 2026 State of Frontier AI & High-Performance Compute Comp Report"
-            >
-              <FileText className="w-3.5 h-3.5 text-[#fbbf24]" />
-              <span>📊 2026 COMP REPORT</span>
-            </button>
-          )}
-
-          {/* Branded URL, Clean Routes & Live QR Code Trigger (Owner Only) */}
-          {isOwner && onOpenAuthenticUrlModal && (
-            <button
-              onClick={onOpenAuthenticUrlModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#22d3a5]/15 hover:bg-[#22d3a5]/25 border border-[#22d3a5] text-[#22d3a5] font-bold transition shadow-[0_0_12px_rgba(34,211,165,0.2)] cursor-pointer active:scale-95"
-              title="Open Live App URL, Clean Vanity Routes (/radar, /pricing, /billing), Scannable QR Code & Custom Domain Setup"
-            >
-              <QrCode className="w-3.5 h-3.5 text-[#22d3a5]" />
-              <span>🔗 APP URL &amp; QR</span>
-            </button>
-          )}
-
-          {/* Interactive Guided Tour Trigger */}
-          {onOpenTour && (
-            <button
-              onClick={onOpenTour}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 border border-[#38bdf8]/60 text-[#38bdf8] font-bold transition shadow-[0_0_12px_rgba(56,189,248,0.2)] cursor-pointer active:scale-95"
-              title="Start interactive guided walkthrough of 3D Radar, AI Supervisor, and Market Analytics"
-            >
-              <Compass className="w-3.5 h-3.5 text-[#38bdf8]" />
-              <span>🧭 GUIDED TOUR</span>
-            </button>
-          )}
-
-          {/* GitHub Repository & Codebase ZIP Exporter (Owner Only) */}
-          {isOwner && onOpenGithubModal && (
-            <button
-              onClick={onOpenGithubModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#22d3a5]/20 to-[#a78bfa]/20 hover:from-[#22d3a5]/30 hover:to-[#a78bfa]/30 border border-[#22d3a5] text-[#22d3a5] font-bold transition shadow-[0_0_12px_rgba(34,211,165,0.2)] cursor-pointer active:scale-95"
-              title="Open GitHub Repository Setup, README.md, and Download Complete Codebase ZIP"
-            >
-              <FolderGit2 className="w-3.5 h-3.5 text-[#22d3a5]" />
-              <span>📦 GITHUB &amp; ZIP</span>
-            </button>
-          )}
-
-          {/* Global Currency & PPP Switcher Trigger */}
-          {onOpenCurrencyModal && (
-            <button
-              onClick={onOpenCurrencyModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111a22] hover:bg-[#162738] border border-[#22d3a5]/40 hover:border-[#22d3a5] text-[#22d3a5] font-bold transition shadow-[0_0_12px_rgba(34,211,165,0.15)] cursor-pointer active:scale-95"
-              title="Change platform display currency and configure Purchasing Power Parity (PPP) normalization"
-            >
-              <Globe className="w-3.5 h-3.5 text-[#22d3a5]" />
-              <span>{currency} ({currencySymbol})</span>
-              {isPppMode && (
-                <span className="text-[9px] px-1 py-0.2 rounded bg-[#38bdf8]/20 text-[#38bdf8] font-bold border border-[#38bdf8]/40">
-                  PPP
-                </span>
+              {user ? (
+                <>
+                  <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-[#22d3a5] to-[#38bdf8] flex items-center justify-center text-black font-bold text-[10px] overflow-hidden shrink-0">
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{(user.displayName || user.email || 'U')[0].toUpperCase()}</span>
+                    )}
+                  </div>
+                  <span className="truncate max-w-[100px] text-[#22d3a5]">
+                    {user.displayName || user.email?.split('@')[0] || 'Account'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-3.5 h-3.5 text-[#22d3a5]" />
+                  <span>LOG IN / SIGN UP</span>
+                </>
               )}
             </button>
           )}
 
-          {/* Executive Compensation Dossier & Client Presentation PDF Exporter */}
-          {onOpenDossierModal && (
-            <button
-              onClick={onOpenDossierModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#fbbf24]/15 hover:bg-[#fbbf24]/25 border border-[#fbbf24]/50 text-[#fbbf24] font-bold transition shadow-[0_0_12px_rgba(251,191,36,0.15)] cursor-pointer active:scale-95"
-              title="Open Custom Branded Executive Compensation Dossier for Client Presentations and Export Vector PDF"
-            >
-              <FileText className="w-3.5 h-3.5 text-[#fbbf24]" />
-              <span>📋 BRANDED CLIENT DOSSIER (PDF)</span>
-            </button>
-          )}
-
-          {/* Google Play Store Publisher Button (Owner Only) */}
-          {isOwner && onOpenPlayStoreModal && (
-            <button
-              onClick={onOpenPlayStoreModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#22d3a5]/20 via-[#38bdf8]/20 to-[#a78bfa]/20 hover:from-[#22d3a5]/30 hover:to-[#a78bfa]/30 border border-[#22d3a5] text-[#22d3a5] font-bold transition shadow-[0_0_15px_rgba(34,211,165,0.25)] cursor-pointer active:scale-95"
-              title="Publish to Android Google Play Store with TWA package, AssetLinks, and Play Console listing"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-[#22d3a5]" />
-              <span>📲 PLAY STORE</span>
-            </button>
-          )}
-
-          {/* M&A Transaction Docket & Escrow Inspection Binder (Owner Only) */}
-          {isOwner && onOpenDocketModal && (
-            <button
-              onClick={onOpenDocketModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#fbbf24]/20 hover:bg-[#fbbf24]/30 border border-[#fbbf24] text-[#fbbf24] font-bold transition shadow-[0_0_12px_rgba(251,191,36,0.2)] cursor-pointer active:scale-95"
-              title="Generate Legal M&A Transaction Docket & 48-Hour Escrow Inspection Binder (PDF)"
-            >
-              <Scale className="w-3.5 h-3.5 text-[#fbbf24]" />
-              <span>⚖️ M&amp;A DOCKET (PDF)</span>
-            </button>
-          )}
-
-          {/* Domain & Asset Credentials Transfer Hub (Owner Only) */}
-          {isOwner && onOpenTransferModal && (
-            <button
-              onClick={onOpenTransferModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#a78bfa]/20 hover:bg-[#a78bfa]/30 border border-[#a78bfa] text-[#a78bfa] font-bold transition shadow-[0_0_15px_rgba(167,139,250,0.2)] cursor-pointer active:scale-95"
-              title="Open Domain & Asset Credentials Transfer Vault (EPP Auth Code, Git Deploy Token, Play Store Handover)"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-[#a78bfa]" />
-              <span>🔐 ASSET TRANSFER</span>
-            </button>
-          )}
-
-          {/* User Authentication & Account Pill */}
-          {onOpenAuthModal && (
-            user ? (
-              <button
-                onClick={onOpenAuthModal}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#111a22] hover:bg-[#162738] border border-[#22d3a5]/50 text-[#dce7f0] font-bold transition shadow-[0_0_12px_rgba(34,211,165,0.15)] cursor-pointer active:scale-95"
-                title="View Authenticated Operator Profile and Cloud Sync Status"
-              >
-                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-[#22d3a5] to-[#38bdf8] flex items-center justify-center text-black font-bold text-[10px] overflow-hidden shrink-0">
-                  {user.photoURL ? (
-                    <img src={user.photoURL} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <span>{(user.displayName || user.email || 'U')[0].toUpperCase()}</span>
-                  )}
-                </div>
-                <span className="text-xs truncate max-w-[100px] text-[#22d3a5]">
-                  {user.displayName || user.email?.split('@')[0] || 'Operator'}
-                </span>
-                <span className="text-[9px] px-1 py-0.2 rounded bg-[#22d3a5]/20 text-[#22d3a5] font-bold border border-[#22d3a5]/40">
-                  CLOUD SYNC
-                </span>
-              </button>
-            ) : (
-              <button
-                onClick={onOpenAuthModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#22d3a5]/15 hover:bg-[#22d3a5]/25 border border-[#22d3a5] text-[#22d3a5] font-bold transition shadow-[0_0_12px_rgba(34,211,165,0.2)] cursor-pointer active:scale-95 animate-pulse"
-                title="Sign in or register an account to sync saved career trajectories and preferences"
-              >
-                <LogIn className="w-3.5 h-3.5 text-[#22d3a5]" />
-                <span>🔑 LOG IN / SIGN UP</span>
-              </button>
-            )
-          )}
-
-          {/* Offline Cache Status & PWA Install Actions */}
-          <OfflineCacheStatusBadge category="all" />
-          <PWAInstallButton variant="button" />
-
-          {/* Prominent Clearance / Paywall Trigger */}
+          {/* Clearance / Upgrade CTA */}
           {tier === 'recruit' ? (
             <button
+              type="button"
               onClick={() => openPaywall('Security Clearance Upgrade')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f87171]/15 hover:bg-[#f87171]/25 border border-[#f87171]/50 text-[#f87171] font-bold transition shadow animate-pulse cursor-pointer"
-              title="Click to elevate clearance and unlock paywall"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#f87171]/15 hover:bg-[#f87171]/25 border border-[#f87171]/50 text-[#f87171] font-bold transition cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />
-              <span>CLEARANCE: RECRUIT (UPGRADE)</span>
+              <span>UPGRADE PRO</span>
             </button>
           ) : tier === 'pro' ? (
             <button
+              type="button"
               onClick={() => openPaywall('Manage Pro Operator Clearance')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#22d3a5]/15 hover:bg-[#22d3a5]/25 border border-[#22d3a5]/50 text-[#22d3a5] font-bold transition shadow cursor-pointer"
-              title="Pro Operator Clearance Active"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#22d3a5]/15 hover:bg-[#22d3a5]/25 border border-[#22d3a5]/50 text-[#22d3a5] font-bold transition cursor-pointer"
             >
-              <ShieldCheck className="w-3.5 h-3.5 text-[#22d3a5]" />
-              <span>CLEARANCE: PRO OPERATOR</span>
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>PRO ACTIVE</span>
             </button>
           ) : (
             <button
+              type="button"
               onClick={() => openPaywall('Manage Sovereign Clearance')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#fbbf24]/15 hover:bg-[#fbbf24]/25 border border-[#fbbf24]/50 text-[#fbbf24] font-bold transition shadow cursor-pointer"
-              title="Sovereign Partner Clearance Active"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#fbbf24]/15 hover:bg-[#fbbf24]/25 border border-[#fbbf24]/50 text-[#fbbf24] font-bold transition cursor-pointer"
             >
-              <Crown className="w-3.5 h-3.5 text-[#fbbf24]" />
-              <span>CLEARANCE: SOVEREIGN{isOwnerBypassActive ? ' (OWNER)' : ''}</span>
+              <Crown className="w-3.5 h-3.5" />
+              <span>SOVEREIGN{isOwnerBypassActive ? ' (OWNER)' : ''}</span>
             </button>
           )}
 
-          {/* Real-time Firestore Subscription Status Sync Pill */}
-          <SubscriptionStatusIndicator />
-
-          {/* Paystack Billing Portal & Receipts Trigger */}
+          {/* Billing / Receipts */}
           <button
+            type="button"
             onClick={openBillingPortal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111a22] hover:bg-[#162738] border border-[#22d3a5]/40 hover:border-[#22d3a5] text-[#dce7f0] font-bold transition cursor-pointer"
-            title="Open Paystack Billing Portal, Receipts, Email Restore, and Owner Console"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#111a22] hover:bg-[#162738] border border-[#22d3a5]/40 text-[#dce7f0] font-bold transition cursor-pointer"
           >
             <CreditCard className="w-3.5 h-3.5 text-[#22d3a5]" />
-            <span>{isOwner ? 'BILLING / OWNER' : 'BILLING / RECEIPTS'}</span>
+            <span>BILLING</span>
           </button>
 
-          {/* One-Click Verified Owner Bypass (Visible ONLY to authenticated Founder Google account) */}
-          {isOwner && tier !== 'sovereign' && (
+          {/* Compact Owner Menu (Tucks all Owner/Admin/M&A Tools into One Dropdown) */}
+          {isOwner && (
+            <div className="relative" ref={ownerMenuRef}>
+              <button
+                type="button"
+                onClick={() => setOwnerMenuOpen((prev) => !prev)}
+                aria-expanded={ownerMenuOpen}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#fbbf24] hover:bg-[#eab308] text-black font-bold transition shadow cursor-pointer"
+              >
+                <Crown className="w-3.5 h-3.5" />
+                <span>OWNER</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform ${ownerMenuOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {ownerMenuOpen && (
+                <div className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-24px)] bg-[#0f171e] border border-[#fbbf24]/50 rounded-xl shadow-2xl z-50 p-2 space-y-1 text-xs font-mono">
+                  <div className="px-2.5 py-1.5 border-b border-[#1e2b36] flex items-center justify-between text-[10px] text-[#fbbf24]">
+                    <span className="font-bold uppercase tracking-wider">Owner Control Menu</span>
+                    <span className="text-[#22d3a5]">{tier.toUpperCase()}</span>
+                  </div>
+
+                  {tier !== 'sovereign' && (
+                    <button
+                      type="button"
+                      onClick={() => runOwnerAction(() => ownerBypassUnlock())}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-[#fbbf24]/20 hover:bg-[#fbbf24]/30 text-[#fbbf24] font-bold text-left cursor-pointer"
+                    >
+                      <Unlock className="w-3.5 h-3.5 shrink-0" />
+                      <span>Unlock Sovereign Free (Bypass)</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => runOwnerAction(openBillingPortal)}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                  >
+                    <CreditCard className="w-3.5 h-3.5 text-[#22d3a5] shrink-0" />
+                    <span>Paystack Setup &amp; Webhook</span>
+                  </button>
+
+                  {setActiveTab && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => runOwnerAction(() => setActiveTab('growth'))}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                      >
+                        <Megaphone className="w-3.5 h-3.5 text-[#38bdf8] shrink-0" />
+                        <span>Subscriber Growth Hub</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => runOwnerAction(() => setActiveTab('comms'))}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                      >
+                        <Radio className="w-3.5 h-3.5 text-[#22d3a5] shrink-0" />
+                        <span>External Comms &amp; Deal Room</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => runOwnerAction(() => setActiveTab('studio'))}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                      >
+                        <Video className="w-3.5 h-3.5 text-[#38bdf8] shrink-0" />
+                        <span>Walkthrough Studio</span>
+                      </button>
+                    </>
+                  )}
+
+                  <div className="my-1 border-t border-[#1e2b36]" />
+
+                  {onOpenAuthenticUrlModal && (
+                    <button
+                      type="button"
+                      onClick={() => runOwnerAction(onOpenAuthenticUrlModal)}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-[#22d3a5] shrink-0" />
+                      <span>App URL, Routes &amp; QR Code</span>
+                    </button>
+                  )}
+
+                  {onOpenGithubModal && (
+                    <button
+                      type="button"
+                      onClick={() => runOwnerAction(onOpenGithubModal)}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                    >
+                      <FolderGit2 className="w-3.5 h-3.5 text-[#a78bfa] shrink-0" />
+                      <span>GitHub &amp; Codebase ZIP</span>
+                    </button>
+                  )}
+
+                  {onOpenPlayStoreModal && (
+                    <button
+                      type="button"
+                      onClick={() => runOwnerAction(onOpenPlayStoreModal)}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                    >
+                      <Smartphone className="w-3.5 h-3.5 text-[#22d3a5] shrink-0" />
+                      <span>Google Play Store Package</span>
+                    </button>
+                  )}
+
+                  {onOpenWalkthroughModal && (
+                    <button
+                      type="button"
+                      onClick={() => runOwnerAction(onOpenWalkthroughModal)}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                    >
+                      <Video className="w-3.5 h-3.5 text-[#22d3a5] shrink-0" />
+                      <span>Walkthrough Video Recorder</span>
+                    </button>
+                  )}
+
+                  {onOpenDocketModal && (
+                    <button
+                      type="button"
+                      onClick={() => runOwnerAction(onOpenDocketModal)}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                    >
+                      <Scale className="w-3.5 h-3.5 text-[#fbbf24] shrink-0" />
+                      <span>M&amp;A Docket (PDF)</span>
+                    </button>
+                  )}
+
+                  {onOpenTransferModal && (
+                    <button
+                      type="button"
+                      onClick={() => runOwnerAction(onOpenTransferModal)}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                    >
+                      <KeyRound className="w-3.5 h-3.5 text-[#a78bfa] shrink-0" />
+                      <span>Asset Transfer Vault</span>
+                    </button>
+                  )}
+
+                  {onOpenDiligenceVaultModal && (
+                    <button
+                      type="button"
+                      onClick={() => runOwnerAction(onOpenDiligenceVaultModal)}
+                      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                    >
+                      <Presentation className="w-3.5 h-3.5 text-[#38bdf8] shrink-0" />
+                      <span>Buyer Data Room</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Row 2: Compact Subscriber Utility Bar (Single Clean Row on Mobile & Desktop) */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenCurrencyModal && (
             <button
-              onClick={() => ownerBypassUnlock()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#fbbf24] hover:bg-[#eab308] text-black font-bold transition shadow cursor-pointer"
-              title="Founder Owner Bypass: Unlock Sovereign Partner clearance free"
+              type="button"
+              onClick={onOpenCurrencyModal}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#111a22] border border-[#1e2b36] hover:border-[#22d3a5] text-[#22d3a5] font-bold cursor-pointer"
             >
-              <Unlock className="w-3.5 h-3.5" />
-              <span>OWNER UNLOCK</span>
+              <Globe className="w-3.5 h-3.5" />
+              <span>
+                {currency} ({currencySymbol})
+              </span>
+              {isPppMode && <span className="text-[9px] text-[#38bdf8]">PPP</span>}
             </button>
           )}
 
-          {/* Google Drive Dossier Vault */}
-          {onOpenDriveModal && (
-            <button
-              onClick={onOpenDriveModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 border border-[#38bdf8]/70 text-[#38bdf8] font-bold transition shadow-[0_0_12px_rgba(56,189,248,0.2)] cursor-pointer active:scale-95"
-              title="Open Google Drive Dossier Vault to browse, upload, edit, and export career reports"
-            >
-              <HardDrive className="w-4 h-4 text-[#38bdf8]" />
-              <span>GOOGLE DRIVE</span>
-            </button>
-          )}
-
-          {/* Refer & Earn 20% Viral Referral CTA */}
           {onOpenReferralModal && (
             <button
+              type="button"
               onClick={onOpenReferralModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#fbbf24]/20 to-[#22d3a5]/20 border border-[#fbbf24] text-[#fbbf24] hover:bg-[#fbbf24]/30 font-bold transition shadow-[0_0_12px_rgba(251,191,36,0.2)] cursor-pointer active:scale-95"
-              title="Refer friends for 20% off & earn 20% commission + Free Pro Months"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#fbbf24]/15 border border-[#fbbf24]/50 text-[#fbbf24] font-bold cursor-pointer"
             >
-              <Gift className="w-4 h-4 text-[#fbbf24]" />
-              <span>REFER &amp; EARN 20%</span>
+              <Gift className="w-3.5 h-3.5" />
+              <span>REFER 20%</span>
             </button>
           )}
-
-          {/* Founder Walkthrough Video Studio (Owner Only) */}
-          {isOwner && onOpenWalkthroughModal && (
-            <button
-              onClick={onOpenWalkthroughModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#22d3a5]/20 hover:bg-[#22d3a5]/30 border border-[#22d3a5] text-[#22d3a5] font-bold transition shadow-[0_0_15px_rgba(34,211,165,0.25)] cursor-pointer active:scale-95"
-              title="Open In-App Walkthrough Video Studio, Recorder & Exporter (.webm)"
-            >
-              <Video className="w-4 h-4 text-[#22d3a5]" />
-              <span>📹 WALKTHROUGH VIDEO</span>
-            </button>
-          )}
-
-          {/* M&A Diligence Data Room & Supporting Documents (Owner Only) */}
-          {isOwner && onOpenDiligenceVaultModal && (
-            <button
-              onClick={onOpenDiligenceVaultModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#a78bfa]/20 via-[#38bdf8]/20 to-[#22d3a5]/20 hover:from-[#a78bfa]/30 hover:to-[#22d3a5]/30 border border-[#a78bfa] text-[#a78bfa] font-bold transition shadow-[0_0_15px_rgba(167,139,250,0.25)] cursor-pointer active:scale-95"
-              title="Open Due Diligence Vault: Marketing Spend, Tax Filings (W-8BEN), Pitch Deck (PDF), and Operational Runbooks"
-            >
-              <Presentation className="w-4 h-4 text-[#a78bfa]" />
-              <span>📁 BUYER DATA ROOM</span>
-            </button>
-          )}
-
-          {/* Subscriber Growth Hub Trigger (Owner Only) */}
-          {isOwner && (
-            <button
-              onClick={() => {
-                if (setActiveTab) setActiveTab('growth');
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#38bdf8]/15 hover:bg-[#38bdf8]/25 border border-[#38bdf8]/50 text-[#38bdf8] font-bold transition shadow cursor-pointer"
-              title="Open Credible Subscriber Acquisition & Regional Outreach Hub"
-            >
-              <Megaphone className="w-3.5 h-3.5 text-[#38bdf8]" />
-              <span>📣 SUBSCRIBER GROWTH HUB</span>
-            </button>
-          )}
-
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#111a22] border border-[#1e2b36] text-[#7a8b99]">
-            <Radio className="w-3.5 h-3.5 text-[#22d3a5]" />
-            <span>RADAR:</span>
-            <span className="text-[#22d3a5] font-bold">{activeJobsCount}</span>
-          </div>
 
           <button
+            type="button"
             onClick={() => {
               if (onOpenAlertsModal) {
                 onOpenAlertsModal();
@@ -427,65 +452,118 @@ export default function Header({
                 setActiveTab('radar');
               }
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#111a22] border border-[#1e2b36] hover:border-[#22d3a5] text-[#7a8b99] hover:text-[#dce7f0] transition cursor-pointer"
-            title={`${subscriptions.length} search alert subscriptions active`}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#111a22] border border-[#1e2b36] hover:border-[#22d3a5] text-[#dce7f0] cursor-pointer"
           >
-            <BellRing className={`w-3.5 h-3.5 ${unreadCount > 0 ? 'text-[#22d3a5] animate-pulse' : 'text-[#7a8b99]'}`} />
-            <span>ALERTS:</span>
-            <span className={`font-bold ${unreadCount > 0 ? 'text-[#22d3a5]' : 'text-[#7a8b99]'}`}>
-              {subscriptions.length}
-            </span>
+            <BellRing
+              className={`w-3.5 h-3.5 ${unreadCount > 0 ? 'text-[#22d3a5] animate-pulse' : 'text-[#7a8b99]'}`}
+            />
+            <span>ALERTS: {subscriptions.length}</span>
             {unreadCount > 0 && (
-              <span className="px-1 py-0.2 rounded-full bg-red-500 text-white text-[9px] font-bold">
+              <span className="px-1 rounded-full bg-red-500 text-white text-[9px] font-bold">
                 {unreadCount}
               </span>
             )}
           </button>
 
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#111a22] border border-[#1e2b36] text-[#7a8b99]">
-            <Bookmark className="w-3.5 h-3.5 text-[#fbbf24]" />
-            <span>SAVED:</span>
-            <span className="text-[#fbbf24] font-bold">{bookmarksCount}</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#111a22] border border-[#1e2b36] text-[#7a8b99]">
-            <Cpu className="w-3.5 h-3.5 text-[#22d3a5]" />
-            <span>AI TRIAD:</span>
-            <span className="text-[#22d3a5] font-bold">4-AGENT</span>
-          </div>
-
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#111a22] border border-[#1e2b36] text-[#7a8b99]">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#22d3a5]" />
-            <span>STEALTH:</span>
-            <span className="text-[#dce7f0]">ACTIVE</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Real-time Platform & Paystack Pricing Ticker */}
-      <div className="mt-3 bg-[#0a0f14] border border-[#1e2b36] rounded-lg px-3 py-1.5 flex items-center justify-between text-xs font-mono text-[#7a8b99] overflow-x-auto whitespace-nowrap scrollbar-none">
-        <div className="flex items-center gap-2 text-[#22d3a5] font-semibold shrink-0">
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>PLATFORM STATUS:</span>
-        </div>
-        <div className="flex items-center gap-6 pl-4 text-[11px]">
-          <span>Telemetry: <strong className="text-[#22d3a5]">Live SaaS Production</strong></span>
-          <span className="text-[#1e2b36]">|</span>
-          <span>Pro Operator: <strong className="text-[#dce7f0]">$49 / mo</strong> ($32/mo Annual)</span>
-          <span className="text-[#1e2b36]">|</span>
-          <span>Sovereign Partner: <strong className="text-[#3b82f6]">$199 / mo</strong> ($149/mo Annual)</span>
-          <span className="text-[#1e2b36]">|</span>
           <button
             type="button"
-            onClick={() => onOpenReferralModal && onOpenReferralModal()}
-            className="text-[#fbbf24] hover:text-white font-bold cursor-pointer inline-flex items-center gap-1 transition"
-            title="Open Referral Program & 20% Launch Discount"
+            onClick={() => setActiveTab?.('bookmarks')}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#111a22] border border-[#1e2b36] hover:border-[#fbbf24] text-[#fbbf24] cursor-pointer"
           >
-            <Gift className="w-3 h-3 text-[#fbbf24]" />
-            <span>Referrals: <strong className="text-[#22d3a5]">Give 20% Off • Earn 20% + Free Pro</strong></span>
+            <Bookmark className="w-3.5 h-3.5" />
+            <span>SAVED: {bookmarksCount}</span>
           </button>
-          <span className="text-[#1e2b36]">|</span>
-          <span>Payments: <strong className="text-[#22d3a5]">Paystack Live (Card • M-Pesa • Bank)</strong></span>
+
+          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#111a22] border border-[#1e2b36] text-[#7a8b99]">
+            <Radio className="w-3.5 h-3.5 text-[#22d3a5]" />
+            <span>RADAR:</span>
+            <span className="text-[#22d3a5] font-bold">{activeJobsCount}</span>
+          </div>
+
+          <div className="hidden lg:flex items-center">
+            <SubscriptionStatusIndicator />
+          </div>
+        </div>
+
+        {/* Subscriber Extra Tools Dropdown (Removes 6 Extra Header Buttons on Mobile) */}
+        <div className="relative" ref={toolsMenuRef}>
+          <button
+            type="button"
+            onClick={() => setToolsMenuOpen((prev) => !prev)}
+            aria-expanded={toolsMenuOpen}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#111a22] hover:bg-[#162738] border border-[#1e2b36] hover:border-[#38bdf8] text-[#dce7f0] font-bold cursor-pointer"
+          >
+            <Wrench className="w-3.5 h-3.5 text-[#38bdf8]" />
+            <span>TOOLS &amp; REPORTS</span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform ${toolsMenuOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {toolsMenuOpen && (
+            <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-24px)] bg-[#0f171e] border border-[#1e2b36] rounded-xl shadow-2xl z-50 p-2 space-y-1 text-xs font-mono">
+              {onOpenDossierModal && (
+                <button
+                  type="button"
+                  onClick={() => runToolAction(onOpenDossierModal)}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#fbbf24] text-left cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5 shrink-0" />
+                  <span>Client Comp Dossier (PDF)</span>
+                </button>
+              )}
+              {onOpenFrontierReportModal && (
+                <button
+                  type="button"
+                  onClick={() => runToolAction(onOpenFrontierReportModal)}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#fbbf24] shrink-0" />
+                  <span>2026 Frontier Comp Report</span>
+                </button>
+              )}
+              {onOpenContributeModal && (
+                <button
+                  type="button"
+                  onClick={() => runToolAction(onOpenContributeModal)}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#22d3a5] text-left cursor-pointer"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                  <span>Submit Offer Benchmark</span>
+                </button>
+              )}
+              {onOpenAgencyPilotModal && (
+                <button
+                  type="button"
+                  onClick={() => runToolAction(onOpenAgencyPilotModal)}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#38bdf8] text-left cursor-pointer"
+                >
+                  <Crown className="w-3.5 h-3.5 shrink-0" />
+                  <span>Agency Sovereign Checkout</span>
+                </button>
+              )}
+              {onOpenDriveModal && (
+                <button
+                  type="button"
+                  onClick={() => runToolAction(onOpenDriveModal)}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#38bdf8] text-left cursor-pointer"
+                >
+                  <HardDrive className="w-3.5 h-3.5 shrink-0" />
+                  <span>Google Drive Vault</span>
+                </button>
+              )}
+              {onOpenTour && (
+                <button
+                  type="button"
+                  onClick={() => runToolAction(onOpenTour)}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#dce7f0] text-left cursor-pointer"
+                >
+                  <Compass className="w-3.5 h-3.5 text-[#38bdf8] shrink-0" />
+                  <span>Guided Tour</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </header>

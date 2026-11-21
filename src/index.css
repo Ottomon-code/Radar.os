@@ -29,11 +29,23 @@ body {
 .tabs {
   display: flex;
   gap: 8px;
-  margin: 20px 0;
-  flex-wrap: wrap;
+  margin: 14px 0 18px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+@media (min-width: 768px) {
+  .tabs {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
 }
 
 .tab {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
