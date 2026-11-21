@@ -101,7 +101,7 @@ export default function GooglePlayPublishModal({
   const playStoreChecklist = [
     {
       title: 'PWA Web App Manifest Compliant',
-      desc: 'Configured with standalone display, portrait orientation, and theme color #0F1720.',
+      desc: 'Configured with fullscreen display, landscape + portrait (any) orientation, and theme color #0F1720.',
       status: 'READY',
     },
     {

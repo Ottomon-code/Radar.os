@@ -26,6 +26,8 @@ import {
   ChevronDown,
   Wrench,
   Sparkles,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import { useSubscription } from '../context/SubscriptionContext';
 import { SubscriptionStatusIndicator } from '../hooks/useSubscriptionStatus';
@@ -89,8 +91,48 @@ export default function Header({
 
   const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const ownerMenuRef = useRef<HTMLDivElement>(null);
   const toolsMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setIsFullscreen(
+        Boolean(
+          document.fullscreenElement ||
+            (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement
+        )
+      );
+    };
+    syncFullscreen();
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreen);
+    };
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      const docEl = document.documentElement as HTMLElement & {
+        webkitRequestFullscreen?: () => Promise<void>;
+      };
+      const doc = document as Document & {
+        webkitFullscreenElement?: Element;
+        webkitExitFullscreen?: () => Promise<void>;
+      };
+      if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+        if (doc.exitFullscreen) await doc.exitFullscreen();
+        else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen();
+      } else {
+        if (docEl.requestFullscreen) await docEl.requestFullscreen();
+        else if (docEl.webkitRequestFullscreen) await docEl.webkitRequestFullscreen();
+      }
+    } catch {
+      // Browser policy may restrict programmatic fullscreen in embedded frames
+    }
+  };
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -562,6 +604,18 @@ export default function Header({
                   <span>Guided Tour</span>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => runToolAction(toggleFullscreen)}
+                className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg hover:bg-[#162738] text-[#22d3a5] text-left cursor-pointer"
+              >
+                {isFullscreen ? (
+                  <Minimize2 className="w-3.5 h-3.5 shrink-0" />
+                ) : (
+                  <Maximize2 className="w-3.5 h-3.5 shrink-0" />
+                )}
+                <span>{isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}</span>
+              </button>
             </div>
           )}
         </div>

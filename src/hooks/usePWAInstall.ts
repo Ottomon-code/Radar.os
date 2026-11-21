@@ -29,10 +29,10 @@ export function usePWAInstall() {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    // Detect standalone mode (already installed)
+    // Detect standalone or fullscreen installed PWA mode
     const isStandalone =
       typeof window !== 'undefined' &&
-      (window.matchMedia('(display-mode: standalone)').matches ||
+      (window.matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches ||
         (window.navigator as unknown as { standalone?: boolean }).standalone === true);
     setIsInstalled(Boolean(isStandalone));
 

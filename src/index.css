@@ -12,18 +12,43 @@
   --warn: #fbbf24;
 }
 
+html,
 body {
   margin: 0;
+  width: 100%;
+  overflow-x: hidden;
   font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
   background-color: var(--bg);
   color: var(--text);
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .app-container {
-  max-width: 1200px;
+  width: 100%;
+  max-width: 1680px;
   margin: 0 auto;
-  padding: 24px 16px 64px;
+  padding: max(12px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(40px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+}
+
+@media (display-mode: fullscreen), (display-mode: standalone) {
+  .app-container {
+    max-width: 100%;
+    padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .app-container {
+    max-width: 100%;
+    padding: max(8px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  .app-container > header {
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+  }
+  .tabs {
+    margin: 8px 0 10px;
+  }
 }
 
 .tabs {

@@ -481,7 +481,7 @@ export default function RadarTab({
         </div>
 
         {/* Dynamic Key Metric Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 font-mono text-xs">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono text-xs">
           <div className="bg-[#0a0f14] p-3 rounded-lg border border-[#1e2b36]">
             <div className="text-[10px] text-[#7a8b99] uppercase tracking-wider flex items-center justify-between">
               <span>TRACKED GLOBAL REQS</span>
@@ -536,9 +536,9 @@ export default function RadarTab({
         </div>
 
         {/* Real-Time Demand Insights & Surging Skills Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 pt-1">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 pt-1">
           {/* Left Column: Top Roles in Current Demand */}
-          <div className="lg:col-span-7 bg-[#0a0f14] p-4 rounded-xl border border-[#1e2b36] space-y-3 font-mono">
+          <div className="md:col-span-7 bg-[#0a0f14] p-4 rounded-xl border border-[#1e2b36] space-y-3 font-mono">
             <div className="flex items-center justify-between border-b border-[#1e2b36] pb-2">
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-[#22d3a5]" />
@@ -606,7 +606,7 @@ export default function RadarTab({
           </div>
 
           {/* Right Column: Surging Skills Velocity Radar */}
-          <div className="lg:col-span-5 bg-[#0a0f14] p-4 rounded-xl border border-[#1e2b36] space-y-3 font-mono">
+          <div className="md:col-span-5 bg-[#0a0f14] p-4 rounded-xl border border-[#1e2b36] space-y-3 font-mono">
             <div className="flex items-center justify-between border-b border-[#1e2b36] pb-2">
               <div className="flex items-center gap-2">
                 <Flame className="w-4 h-4 text-[#fbbf24]" />
