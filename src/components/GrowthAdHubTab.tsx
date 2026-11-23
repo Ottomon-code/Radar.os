@@ -25,6 +25,7 @@ import { useSubscription } from '../context/SubscriptionContext';
 import FunctionalQRCode from './FunctionalQRCode';
 import BuyerProspectFinderModal from './BuyerProspectFinderModal';
 import SovereignEnterpriseBotModal from './SovereignEnterpriseBotModal';
+import TimeAwareOutreachCalendar from './TimeAwareOutreachCalendar';
 
 interface GrowthAdHubTabProps {
   onNavigateToTab?: (tab: string) => void;
@@ -474,6 +475,13 @@ export default function GrowthAdHubTab({ onNavigateToTab }: GrowthAdHubTabProps)
           })}
         </div>
       </div>
+
+      {/* Time-Aware Global Outreach Calendar (.ics export + live target timezone clocks) */}
+      <TimeAwareOutreachCalendar
+        shareUrl={trackedShareUrl}
+        analyticsUrl={analyticsShareUrl}
+        referralCode={referralCode || undefined}
+      />
 
       {/* B2B / Agency & Acquisition Cross-Link Card */}
       <div className="bg-gradient-to-r from-[#fbbf24]/10 via-[#111a22] to-[#38bdf8]/10 border border-[#fbbf24]/40 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 font-mono text-xs">

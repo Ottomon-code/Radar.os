@@ -46,6 +46,7 @@ import {
   generateSalaryTimeline,
   matchCareerProfile,
   CareerPathProfile,
+  ProjectionHorizon,
 } from '../utils/marketAnalyticsEngine';
 import { downloadBulkCapabilitiesCsv } from '../utils/bulkCapabilitiesCsv';
 import {
@@ -102,6 +103,7 @@ export default function MarketAnalyticsTab({
     'trends' | 'percentiles' | 'composition' | 'geography' | 'tc_simulator' | 'negotiation_scripts'
   >('trends');
   const [trendDisplayMode, setTrendDisplayMode] = useState<'chart' | 'table'>('chart');
+  const [projectionHorizon, setProjectionHorizon] = useState<ProjectionHorizon>('1y');
   const [copiedTableData, setCopiedTableData] = useState(false);
   const [negotiationPreload, setNegotiationPreload] = useState<{ firm: string; base: number; totalComp: number } | null>(null);
   const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null);
@@ -139,8 +141,11 @@ export default function MarketAnalyticsTab({
     setTimeout(() => setSaveSuccessMsg(null), 3500);
   };
 
-  // Evolving salary timeline based on active career interest
-  const rawTimeline = useMemo(() => generateSalaryTimeline(selectedProfileKey), [selectedProfileKey]);
+  // Evolving salary timeline based on active career interest and projection horizon (1-Year vs 3-Year)
+  const rawTimeline = useMemo(
+    () => generateSalaryTimeline(selectedProfileKey, projectionHorizon),
+    [selectedProfileKey, projectionHorizon]
+  );
 
   const [liveAtsBenchmarks, setLiveAtsBenchmarks] = useState<{
     boardsSucceeded: number;
@@ -209,6 +214,23 @@ export default function MarketAnalyticsTab({
       };
     });
   }, [timelineData]);
+
+  // Summary of active 1-Year vs 3-Year upside from 2026 baseline
+  const projectionSummary = useMemo(() => {
+    const currentPoint = timelineData.find((d) => d.year.startsWith('2026')) || timelineData[0];
+    const terminalPoint = timelineData[timelineData.length - 1];
+    const currentComp = currentPoint?.userFocusedSalary ?? currentPoint?.aiCompute ?? 0;
+    const projectedComp = terminalPoint?.userFocusedSalary ?? terminalPoint?.aiCompute ?? currentComp;
+    const deltaComp = Math.max(0, projectedComp - currentComp);
+    const growthPct = currentComp > 0 ? Math.round(((projectedComp - currentComp) / currentComp) * 1000) / 10 : 0;
+    return {
+      targetYearLabel: projectionHorizon === '3y' ? '2029 (3-Year)' : '2027 (1-Year)',
+      currentComp,
+      projectedComp,
+      deltaComp,
+      growthPct,
+    };
+  }, [timelineData, projectionHorizon]);
 
   // Percentiles for the active profile
   const percentileData = useMemo(() => {
@@ -360,7 +382,7 @@ export default function MarketAnalyticsTab({
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#22d3a5]/10 text-[#22d3a5] border border-[#22d3a5]/30 font-semibold tracking-wider flex items-center gap-1">
               <TrendingUp className="w-3 h-3 text-[#22d3a5]" />
-              RECHARTS SALARY TRAJECTORY FORECASTS (2020–2027)
+              RECHARTS SALARY TRAJECTORY FORECASTS (2020–{projectionHorizon === '3y' ? '2029' : '2027'})
             </span>
             <OfflineCacheStatusBadge category="salary" />
           </div>
@@ -641,9 +663,9 @@ export default function MarketAnalyticsTab({
               <LineChartIcon className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-base font-bold text-white">
-                  CAREER GROWTH INDEX (CGI) // 2020–2027 TRAJECTORY
+                  CAREER GROWTH INDEX (CGI) // 2020–{projectionHorizon === '3y' ? '2029' : '2027'} TRAJECTORY
                 </h3>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-[#22d3a5] text-black font-bold">
                   BASE 100 (2020)
@@ -655,9 +677,40 @@ export default function MarketAnalyticsTab({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div
+              role="group"
+              aria-label="Salary Projection Horizon"
+              className="inline-flex items-center bg-[#0a0f14] p-1 rounded-lg border border-[#1e2b36] text-[11px]"
+            >
+              <button
+                type="button"
+                onClick={() => setProjectionHorizon('1y')}
+                className={`px-2.5 py-1 rounded font-bold transition cursor-pointer ${
+                  projectionHorizon === '1y'
+                    ? 'bg-[#22d3a5] text-black'
+                    : 'text-[#7a8b99] hover:text-white'
+                }`}
+              >
+                1-Year (2027)
+              </button>
+              <button
+                type="button"
+                onClick={() => setProjectionHorizon('3y')}
+                className={`px-2.5 py-1 rounded font-bold transition cursor-pointer ${
+                  projectionHorizon === '3y'
+                    ? 'bg-[#38bdf8] text-black'
+                    : 'text-[#7a8b99] hover:text-white'
+                }`}
+              >
+                3-Year (2029)
+              </button>
+            </div>
+
             <div className="px-3 py-1.5 rounded-lg bg-[#0a0f14] border border-[#1e2b36] text-right">
-              <span className="text-[10px] text-[#7a8b99] block">CURRENT CGI SCORE</span>
+              <span className="text-[10px] text-[#7a8b99] block">
+                {projectionHorizon === '3y' ? '2029 PROJ CGI SCORE' : '2027 PROJ CGI SCORE'}
+              </span>
               <span className="text-lg font-bold text-[#22d3a5]">
                 {careerGrowthIndexData[careerGrowthIndexData.length - 1]?.['Career Growth Index'] || 185} PTS
               </span>
@@ -797,14 +850,43 @@ export default function MarketAnalyticsTab({
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-[#22d3a5]" />
-                COMPENSATION TRAJECTORY MATRIX (2020–2027)
+                COMPENSATION TRAJECTORY MATRIX (2020–{projectionHorizon === '3y' ? '2029' : '2027'})
               </h3>
               <p className="text-xs text-[#7a8b99]">
-                Historical realization and calibrated forward forecasts across frontier technical domains ({currency}).
+                Historical realization and calibrated {projectionHorizon === '3y' ? '3-year (through 2029)' : '1-year (through 2027)'} forward forecasts across frontier technical domains ({currency}).
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                role="group"
+                aria-label="Trajectory Chart Projection Horizon"
+                className="inline-flex items-center bg-[#0a0f14] p-1 rounded-lg border border-[#1e2b36] text-xs"
+              >
+                <button
+                  type="button"
+                  onClick={() => setProjectionHorizon('1y')}
+                  className={`px-2.5 py-1 rounded font-bold transition cursor-pointer ${
+                    projectionHorizon === '1y'
+                      ? 'bg-[#22d3a5] text-black'
+                      : 'text-[#7a8b99] hover:text-white'
+                  }`}
+                >
+                  1-Year Proj
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProjectionHorizon('3y')}
+                  className={`px-2.5 py-1 rounded font-bold transition cursor-pointer ${
+                    projectionHorizon === '3y'
+                      ? 'bg-[#38bdf8] text-black'
+                      : 'text-[#7a8b99] hover:text-white'
+                  }`}
+                >
+                  3-Year Proj
+                </button>
+              </div>
+
               <button
                 onClick={() => setTrendDisplayMode('chart')}
                 className={`px-3 py-1.5 rounded text-xs font-bold transition cursor-pointer ${
@@ -825,6 +907,27 @@ export default function MarketAnalyticsTab({
               >
                 Table Data
               </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 bg-[#0a0f14] border border-[#1e2b36] rounded-lg p-3 text-xs">
+            <div>
+              <span className="text-[10px] text-[#7a8b99] block">2026 LIVE BASELINE</span>
+              <span className="font-bold text-[#dce7f0]">
+                {currencySymbol}{projectionSummary.currentComp.toLocaleString()} {currency}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] text-[#7a8b99] block">{projectionSummary.targetYearLabel.toUpperCase()} TARGET</span>
+              <span className="font-bold text-[#22d3a5]">
+                {currencySymbol}{projectionSummary.projectedComp.toLocaleString()} {currency}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] text-[#7a8b99] block">PROJECTED COMPOUND UPSIDE</span>
+              <span className="font-bold text-[#fbbf24]">
+                +{projectionSummary.growthPct}% (+{currencySymbol}{projectionSummary.deltaComp.toLocaleString()})
+              </span>
             </div>
           </div>
 

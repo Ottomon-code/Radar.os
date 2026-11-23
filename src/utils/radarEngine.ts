@@ -422,6 +422,39 @@ export const DEFAULT_JOB_ALERTS: JobAlert[] = [
   }
 ];
 
+const GENERIC_MODIFIERS = new Set([
+  'a', 'an', 'the', 'and', 'or', 'of', 'in', 'for', 'to', 'at', 'with', 'on', 'by',
+  'senior', 'sr', 'junior', 'jr', 'staff', 'principal', 'lead', 'head', 'chief',
+  'consultant', 'specialist', 'engineer', 'developer', 'architect', 'manager',
+  'director', 'analyst', 'expert', 'associate', 'intern', 'remote', 'hybrid',
+]);
+
+function parseSearchQuery(raw: string): {
+  phrases: string[];
+  allTokens: string[];
+  domainTokens: string[];
+} {
+  const cleaned = raw.replace(/["'`()]+/g, ' ').toLowerCase();
+  const phrases = cleaned
+    .split(/[,;|]+|\bor\b/gi)
+    .map((p) => p.replace(/\s+/g, ' ').trim())
+    .filter((p) => p.length >= 2);
+
+  const rawTokens = cleaned
+    .split(/[\s,;|/]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2 && !['and', 'or', 'the', 'for', 'with'].includes(t));
+
+  const allTokens = Array.from(new Set(rawTokens));
+  const domainTokens = allTokens.filter((t) => !GENERIC_MODIFIERS.has(t));
+
+  return {
+    phrases: Array.from(new Set(phrases)),
+    allTokens,
+    domainTokens: domainTokens.length > 0 ? domainTokens : allTokens,
+  };
+}
+
 export function searchJobs(
   params: JobSearchParams,
   sourceJobs: JobAlert[] = DEFAULT_JOB_ALERTS
@@ -438,34 +471,84 @@ export function searchJobs(
   const urgencyFilter = params.urgency || 'All';
   const sectorFilter = params.sector || 'All';
 
-  const kwTokens = kw.split(/\s+/).filter(Boolean);
+  const { phrases, allTokens, domainTokens } = parseSearchQuery(kw);
 
   const scored = sourceJobs.map((job) => {
-    let score = job.matchScore;
+    const titleLower = job.title.toLowerCase();
+    const deptSkillsLower = `${job.department || ''} ${job.skills.join(' ')} ${job.sector} ${job.company}`.toLowerCase();
+    const descLower = job.description.toLowerCase();
+    const fullHaystack = `${titleLower} ${deptSkillsLower} ${descLower}`;
 
-    // Keyword match check
-    if (kwTokens.length > 0) {
-      const haystack = `${job.title} ${job.company} ${job.sector} ${job.department || ''} ${job.description} ${job.skills.join(' ')}`.toLowerCase();
-      let matchCount = 0;
-      for (const token of kwTokens) {
-        if (haystack.includes(token)) {
-          matchCount++;
+    let score = Math.min(82, job.matchScore);
+    let titleDomainHits = 0;
+    let deptDomainHits = 0;
+    let descDomainHits = 0;
+    let phraseHitInTitle = false;
+    let phraseHitAnywhere = false;
+
+    if (allTokens.length > 0) {
+      for (const phrase of phrases) {
+        if (titleLower.includes(phrase)) {
+          phraseHitInTitle = true;
+          phraseHitAnywhere = true;
+        } else if (deptSkillsLower.includes(phrase) || descLower.includes(phrase)) {
+          phraseHitAnywhere = true;
         }
       }
-      if (matchCount === 0) {
-        score -= 40;
-      } else {
-        score += matchCount * 6;
+
+      for (const token of domainTokens) {
+        if (titleLower.includes(token)) {
+          titleDomainHits++;
+        } else if (deptSkillsLower.includes(token)) {
+          deptDomainHits++;
+        } else if (descLower.includes(token)) {
+          descDomainHits++;
+        }
       }
+
+      let modifierTitleHits = 0;
+      for (const token of allTokens) {
+        if (GENERIC_MODIFIERS.has(token) && titleLower.includes(token)) {
+          modifierTitleHits++;
+        }
+      }
+
+      if (phraseHitInTitle) score += 16;
+      else if (phraseHitAnywhere) score += 8;
+
+      score += titleDomainHits * 11;
+      score += deptDomainHits * 5;
+      score += Math.min(2, descDomainHits) * 2;
+      score += Math.min(2, modifierTitleHits) * 2;
+
+      const totalDomainHits = titleDomainHits + deptDomainHits + descDomainHits;
+      if (totalDomainHits === 0) {
+        score -= 45;
+      } else if (titleDomainHits === 0 && deptDomainHits === 0) {
+        // Matched only inside company/job boilerplate description — never show 95%+
+        score = Math.min(score, 68);
+      } else if (titleDomainHits === 0) {
+        score = Math.min(score, 84);
+      }
+
+      // Guardrail: if query asks for technical/security/domain roles, downrank unrelated sales/finance/recruiting titles lacking domain tokens
+      if (
+        titleDomainHits === 0 &&
+        /\b(account executive|sales director|financial analyst|recruiter|counsel|marketing)\b/i.test(job.title)
+      ) {
+        score -= 18;
+      }
+    } else {
+      score = job.matchScore;
     }
 
     // Location match check
     if (loc && loc !== 'all') {
       const locHaystack = job.location.toLowerCase();
       if (loc === 'remote' && locHaystack.includes('remote')) {
-        score += 15;
+        score += 4;
       } else if (locHaystack.includes(loc)) {
-        score += 12;
+        score += 4;
       } else {
         score -= 25;
       }
@@ -476,7 +559,7 @@ export function searchJobs(
       if (job.numericMaxSalary > 0 && job.numericMaxSalary < minSal) {
         score -= 30;
       } else if (job.numericMinSalary >= minSal) {
-        score += 10;
+        score += 3;
       }
     }
 
@@ -486,26 +569,39 @@ export function searchJobs(
 
     // Urgency match
     if (urgencyFilter !== 'All' && job.urgency === urgencyFilter) {
-      score += 5;
+      score += 2;
     }
 
     // Sector match
     if (sectorFilter !== 'All' && job.sector.toLowerCase().includes(sectorFilter.toLowerCase())) {
-      score += 10;
+      score += 4;
     }
 
+    const relevanceRank =
+      (phraseHitInTitle ? 1000 : 0) +
+      titleDomainHits * 100 +
+      deptDomainHits * 25 +
+      (phraseHitAnywhere ? 15 : 0) +
+      descDomainHits * 3;
+
     return {
-      ...job,
-      matchScore: Math.min(99, Math.max(35, score))
+      job: {
+        ...job,
+        matchScore: Math.min(99, Math.max(35, Math.round(score))),
+      },
+      relevanceRank,
+      hasDomainMatch:
+        allTokens.length === 0 ||
+        phraseHitAnywhere ||
+        titleDomainHits + deptDomainHits + descDomainHits > 0 ||
+        fullHaystack.includes(kw),
     };
   });
 
-  // Filter out severely mismatched jobs if search queries were specified
-  const filtered = scored.filter((job) => {
-    if (kwTokens.length > 0) {
-      const haystack = `${job.title} ${job.company} ${job.sector} ${job.department || ''} ${job.description} ${job.skills.join(' ')}`.toLowerCase();
-      const hasAnyToken = kwTokens.some((t) => haystack.includes(t));
-      if (!hasAnyToken) return false;
+  // Filter out mismatched jobs if search queries were specified
+  const filteredEntries = scored.filter(({ job, hasDomainMatch }) => {
+    if (allTokens.length > 0 && !hasDomainMatch) {
+      return false;
     }
 
     if (loc && loc !== 'all') {
@@ -530,8 +626,15 @@ export function searchJobs(
     return true;
   });
 
-  // Sort by match score descending
-  filtered.sort((a, b) => b.matchScore - a.matchScore);
+  // Sort by true title/domain relevance first, then match score descending
+  filteredEntries.sort((a, b) => {
+    if (allTokens.length > 0 && b.relevanceRank !== a.relevanceRank) {
+      return b.relevanceRank - a.relevanceRank;
+    }
+    return b.job.matchScore - a.job.matchScore;
+  });
+
+  const filtered = filteredEntries.map((e) => e.job);
 
   // Identify most relevant sector from matched jobs
   const sectorCounts: Record<string, number> = {};
@@ -548,7 +651,7 @@ export function searchJobs(
   }
 
   return {
-    jobs: filtered.length > 0 ? filtered : scored.slice(0, 4), // Fallback to best candidates if too restrictive
+    jobs: filtered.length > 0 ? filtered : scored.slice(0, 4).map((e) => e.job),
     totalCount: filtered.length,
     matchedSector,
     recommendedKeywords: ['CUDA & Triton', 'Distributed InfiniBand', 'Zero Trust GovCloud', 'C++23 Market Microstructure', 'ROS 2 & Perception']

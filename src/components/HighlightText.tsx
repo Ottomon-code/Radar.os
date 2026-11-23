@@ -29,13 +29,17 @@ export const HighlightText: React.FC<HighlightTextProps> = ({
     return <span className={className}>{text}</span>;
   }
 
-  // Extract non-empty tokens, clean them, and escape regex chars
-  const tokens = query
-    .trim()
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0)
-    .map(escapeRegExp);
+  // Extract non-empty tokens (stripping quotes/commas/punctuation), deduplicate, and escape regex chars
+  const tokens = Array.from(
+    new Set(
+      query
+        .replace(/["'`()]+/g, ' ')
+        .trim()
+        .split(/[\s,;|/]+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length >= 2)
+    )
+  ).map(escapeRegExp);
 
   if (tokens.length === 0) {
     return <span className={className}>{text}</span>;

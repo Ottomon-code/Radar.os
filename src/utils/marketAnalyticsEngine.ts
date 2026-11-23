@@ -436,12 +436,19 @@ export const CAREER_PROFILES: Record<string, CareerPathProfile> = {
   },
 };
 
-// Generates time series data (2020 - 2027 Projected) dynamically calibrated to career profile
-export function generateSalaryTimeline(selectedProfileKey: string): SectorSalaryDataPoint[] {
+export type ProjectionHorizon = '1y' | '3y';
+
+// Generates time series data (2020 - 2027 or 2029 Projected) dynamically calibrated to career profile
+export function generateSalaryTimeline(
+  selectedProfileKey: string,
+  projectionHorizon: ProjectionHorizon = '1y'
+): SectorSalaryDataPoint[] {
   const profile = CAREER_PROFILES[selectedProfileKey] || CAREER_PROFILES.ai_infra;
   const mult = profile.compMultiplier;
+  const parsedCagr = Number.parseFloat(profile.fiveYearCagr.replace(/[^0-9.]/g, ''));
+  const annualRate = Number.isFinite(parsedCagr) && parsedCagr > 0 ? Math.min(0.24, parsedCagr / 100) : 0.15;
 
-  return [
+  const baseSeries: SectorSalaryDataPoint[] = [
     {
       year: '2020',
       aiCompute: 220000,
@@ -520,9 +527,43 @@ export function generateSalaryTimeline(selectedProfileKey: string): SectorSalary
       cyberDefense: 520000,
       cloudSystems: 580000,
       biotechML: 540000,
-      userFocusedSalary: Math.round(profile.ttc2026 * 1.15),
+      userFocusedSalary: Math.round(profile.ttc2026 * (1 + annualRate * 0.85)),
     },
   ];
+
+  if (projectionHorizon === '3y') {
+    const y2027 = baseSeries[baseSeries.length - 1];
+    const focus2027 = y2027.userFocusedSalary || profile.ttc2026;
+    const year2Rate = Math.max(0.08, annualRate * 0.78);
+    const year3Rate = Math.max(0.07, annualRate * 0.72);
+    const focus2028 = Math.round(focus2027 * (1 + year2Rate));
+    const focus2029 = Math.round(focus2028 * (1 + year3Rate));
+
+    baseSeries.push(
+      {
+        year: '2028 (Proj)',
+        aiCompute: Math.round(y2027.aiCompute * 1.11),
+        robotics: Math.round(y2027.robotics * 1.14),
+        fintechQuant: Math.round(y2027.fintechQuant * 1.1),
+        cyberDefense: Math.round(y2027.cyberDefense * 1.12),
+        cloudSystems: Math.round(y2027.cloudSystems * 1.11),
+        biotechML: Math.round(y2027.biotechML * 1.12),
+        userFocusedSalary: focus2028,
+      },
+      {
+        year: '2029 (Proj)',
+        aiCompute: Math.round(y2027.aiCompute * 1.11 * 1.1),
+        robotics: Math.round(y2027.robotics * 1.14 * 1.12),
+        fintechQuant: Math.round(y2027.fintechQuant * 1.1 * 1.09),
+        cyberDefense: Math.round(y2027.cyberDefense * 1.12 * 1.1),
+        cloudSystems: Math.round(y2027.cloudSystems * 1.11 * 1.1),
+        biotechML: Math.round(y2027.biotechML * 1.12 * 1.11),
+        userFocusedSalary: focus2029,
+      }
+    );
+  }
+
+  return baseSeries;
 }
 
 // Maps arbitrary career title strings from the app to the closest profile

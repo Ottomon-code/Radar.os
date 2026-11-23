@@ -40,7 +40,7 @@ interface AtsCacheEntry {
 
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 5500;
-const PER_BOARD_LIMIT = 25;
+const PER_BOARD_LIMIT = 50;
 
 // 14 Verified Public Unauthenticated ATS Job Boards (Ashby, Greenhouse, Lever)
 export const VERIFIED_ATS_BOARDS: AtsBoardConfig[] = [
