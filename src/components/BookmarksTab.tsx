@@ -221,11 +221,11 @@ export default function BookmarksTab({
           </div>
 
           <div className="space-y-3">
-            {savedJobs.map((job) => {
+            {savedJobs.map((job, idx) => {
               const isApplied = appliedJobIds.includes(job.id);
               return (
                 <div
-                  key={job.id}
+                  key={`${job.id}-${idx}`}
                   className="panel bg-[#111a22] border border-[#1e2b36] hover:border-[#3b82f6]/50 rounded-xl p-4 transition shadow relative group"
                 >
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">

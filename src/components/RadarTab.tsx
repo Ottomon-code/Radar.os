@@ -1284,14 +1284,14 @@ export default function RadarTab({
             </button>
           </div>
         ) : (
-          jobs.map((job) => {
+          jobs.map((job, idx) => {
             const isApplied = appliedJobs.includes(job.id);
             const matchesSalary = (minSalary === 0 || job.numericMaxSalary >= minSalary) && (maxSalary >= 600000 || job.numericMinSalary <= maxSalary);
             const isCompClassified = !isPro && job.numericMaxSalary >= 350000;
 
             return (
               <div
-                key={job.id}
+                key={`${job.id}-${idx}`}
                 className="panel bg-[#111a22] hover:border-[#22d3a5]/50 transition-all border border-[#1e2b36] rounded-xl p-4 shadow relative group"
               >
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">

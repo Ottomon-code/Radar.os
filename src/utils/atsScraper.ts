@@ -455,7 +455,7 @@ async function fetchAshbyBoard(board: AtsBoardConfig): Promise<{ jobs: JobAlert[
     return tb - ta;
   });
 
-  const normalized: JobAlert[] = sorted.slice(0, PER_BOARD_LIMIT).map((j) => {
+  const normalized: JobAlert[] = sorted.slice(0, PER_BOARD_LIMIT).map((j, idx) => {
     const title = String(j?.title || 'Engineering Role').trim();
     const department = String(j?.department || j?.team || 'Engineering').trim();
     const locParts = [j?.location, j?.isRemote ? 'Remote' : ''].filter(Boolean);
@@ -502,11 +502,11 @@ async function fetchAshbyBoard(board: AtsBoardConfig): Promise<{ jobs: JobAlert[
     }
 
     const posted = formatPostedAgo(j?.publishedAt);
-    const rawId = String(j?.id || '').slice(0, 8).toUpperCase();
+    const rawId = String(j?.id || '').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
     const empType = String(j?.employmentType || '').toLowerCase();
 
     return {
-      id: `ASH-${board.slug.slice(0, 3).toUpperCase()}-${rawId || Math.floor(1000 + Math.random() * 9000)}`,
+      id: `ASH-${board.slug.toUpperCase()}-${rawId || `${idx + 1}`}`,
       title,
       company: board.companyName,
       location,
@@ -553,16 +553,17 @@ async function fetchGreenhouseBoard(board: AtsBoardConfig): Promise<{ jobs: JobA
     return tb - ta;
   });
 
-  const normalized: JobAlert[] = sorted.slice(0, PER_BOARD_LIMIT).map((j) => {
+  const normalized: JobAlert[] = sorted.slice(0, PER_BOARD_LIMIT).map((j, idx) => {
     const title = String(j?.title || 'Engineering Role').trim();
     const department = String(j?.departments?.[0]?.name || 'Engineering').trim();
     const location = String(j?.location?.name || board.hqLocation).trim();
     const plain = htmlToPlainText(String(j?.content || ''));
     const salary = extractSalaryFromText(plain);
     const posted = formatPostedAgo(j?.updated_at || j?.first_published);
+    const rawId = String(j?.id || '').replace(/[^a-zA-Z0-9_-]/g, '');
 
     return {
-      id: `GH-${board.slug.slice(0, 3).toUpperCase()}-${String(j?.id || '').slice(-6)}`,
+      id: `GH-${board.slug.toUpperCase()}-${rawId || `${idx + 1}`}`,
       title,
       company: String(j?.company_name || board.companyName).trim(),
       location,
@@ -605,7 +606,7 @@ async function fetchLeverBoard(board: AtsBoardConfig): Promise<{ jobs: JobAlert[
 
   const sorted = [...rawJobs].sort((a, b) => (Number(b?.createdAt) || 0) - (Number(a?.createdAt) || 0));
 
-  const normalized: JobAlert[] = sorted.slice(0, PER_BOARD_LIMIT).map((j) => {
+  const normalized: JobAlert[] = sorted.slice(0, PER_BOARD_LIMIT).map((j, idx) => {
     const title = String(j?.text || 'Engineering Role').trim();
     const department = String(j?.categories?.team || j?.categories?.department || 'Engineering').trim();
     const baseLocation = String(j?.categories?.location || board.hqLocation).trim();
@@ -643,9 +644,10 @@ async function fetchLeverBoard(board: AtsBoardConfig): Promise<{ jobs: JobAlert[
 
     const posted = formatPostedAgo(Number(j?.createdAt));
     const commitment = String(j?.categories?.commitment || '').toLowerCase();
+    const rawId = String(j?.id || '').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
 
     return {
-      id: `LEV-${board.slug.slice(0, 3).toUpperCase()}-${String(j?.id || '').slice(0, 6).toUpperCase()}`,
+      id: `LEV-${board.slug.toUpperCase()}-${rawId || `${idx + 1}`}`,
       title,
       company: board.companyName,
       location,
@@ -719,14 +721,22 @@ async function scrapeAllBoards(forceRefresh = false): Promise<AtsCacheEntry> {
       };
     }
 
-    // Interleave jobs across boards round-robin so top feed represents all companies cleanly
+    // Interleave jobs across boards round-robin and enforce strictly unique IDs
     const interleaved: JobAlert[] = [];
+    const seenIds = new Set<string>();
     const maxLen = Math.max(...perBoardJobs.map((list) => list.length));
     for (let i = 0; i < maxLen; i += 1) {
       for (const boardList of perBoardJobs) {
-        if (boardList[i]) {
-          interleaved.push(boardList[i]);
+        const candidate = boardList[i];
+        if (!candidate) continue;
+        let uniqueId = candidate.id;
+        let suffix = 2;
+        while (seenIds.has(uniqueId)) {
+          uniqueId = `${candidate.id}-${suffix}`;
+          suffix += 1;
         }
+        seenIds.add(uniqueId);
+        interleaved.push(uniqueId === candidate.id ? candidate : { ...candidate, id: uniqueId });
       }
     }
 

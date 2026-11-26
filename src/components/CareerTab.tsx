@@ -485,9 +485,9 @@ export default function CareerTab({
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {matchingLiveJobs.slice(0, 4).map((job) => (
+                {matchingLiveJobs.slice(0, 4).map((job, idx) => (
                   <div
-                    key={job.id}
+                    key={`${job.id}-${idx}`}
                     className="bg-[#0a0f14] border border-[#1e2b36] hover:border-[#22d3a5]/40 rounded-lg p-3.5 text-xs font-mono flex flex-col justify-between gap-2"
                   >
                     <div>
